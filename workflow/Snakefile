@@ -1,0 +1,1095 @@
+configfile: "../config/config.yaml"
+
+rule all:
+    input:
+        expand("../results/MAG_binning/bins/{sam_name2}B-metabat2.bins.done", sam_name2=config["sam_names"]),
+        "../results/assembly/HF_assembly/all_HFassemblies_summary_tab.txt"
+
+#################### Main Functions #######################################
+import os
+def get_direction_r1(wildcards) :
+#This  function returns a list of R1 reads when the same sample was sequenced on multiple lanes
+    samname=wildcards.sample
+    l=config["samples"][samname]
+
+    r_list=[]
+    r1_l1=[s for s in l if "L1_R1" in s]
+    r1_l2=[s for s in l if "L2_R1" in s]
+    r1_l3=[s for s in l if "L3_R1" in s]
+    r1_l4=[s for s in l if "L4_R1" in s]
+
+    r_list.extend(r1_l1)
+    r_list.extend(r1_l2)
+    if len(r1_l3) >0: r_list.extend(r1_l3)
+    if len(r1_l4) >0: r_list.extend(r1_l4)
+    return(r_list)
+
+
+def get_direction_r2(wildcards) :
+#This  function returns a list of R2 reads when the same sample was sequenced on multiple lanes
+    samname=wildcards.sample
+    l=config["samples"][samname]
+
+    r_list=[]
+    r2_l1=[s for s in l if "L1_R2" in s]
+    r2_l2=[s for s in l if "L2_R2" in s]
+    r2_l3=[s for s in l if "L3_R2" in s]
+    r2_l4=[s for s in l if "L4_R2" in s]
+
+    r_list.extend(r2_l1)
+    r_list.extend(r2_l2)
+    if len(r2_l3) >0: r_list.extend(r2_l3)
+    if len(r2_l4) >0: r_list.extend(r2_l4)
+    return(r_list)
+
+def get_files_commas(path, sep=","):
+    file_l=os.listdir(path)
+    file_l2=[]
+    for f in file_l:
+        file_l2.append(os.path.join(path,f))
+    out=sep.join(file_l2)
+    return(out)
+
+def get_wildcard_commas(paths, sep=","):
+    file_l=[paths]
+    out=sep.join(file_l)
+    return(out)
+
+def get_type(wildcards) :
+    type_w=wildcards.type
+    return(type_w)
+
+def join_list(li, car):
+    fin_l=[]
+    for i in li:
+        add=i+car
+        fin_l.append(add)
+    return(fin_l)
+
+################################################################################
+######################### Kraken2 DB building ##################################
+################################################################################
+# Build a costum kraken database to quickly analyse the community of our
+# sequencing data. this rule can take more than 5 hrs to run. Honeybee phages
+# are classified as "archea" to save me time and avoid to write the whole
+# Phylogeny from scratch. Then the classification will be changed when the
+# kraken reports ae parsed.
+################################################################################
+################################################################################
+
+rule build_Krakern2:
+    input:
+        GB_VC= "../data/reference_assemblies/VCs_kraken/GB_ViralClusters_kraken.fna",
+        Amel= "../data/reference_assemblies/A_mellifera/GCF_003254395.2_Amel_HAv3.1_genomic.fna"
+    output:
+        directory("resources/databases/220131_costum_kraken2db")
+    threads: 42
+    conda:
+        "envs/Kraken2.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 500000,
+        runtime= "06:00:00",
+        disk_mb= 1000000
+    log:
+        "logs/data_validation/kraken2/database_kraken2.log"
+    shell:
+        "kraken2-build --download-taxonomy --db {output}; "
+        "kraken2-build --download-library bacteria --db {output}; "
+        "kraken2-build --download-library viral --db {output}; "
+        "kraken2-build --download-library human --db {output}; "
+        "kraken2-build --add-to-library {input.GB_VC}  --db {output}; "
+        "kraken2-build --add-to-library {input.Amel} --db {output}"
+
+################################################################################
+########################### DATA VALIDATION ####################################
+################################################################################
+# The following pipeline is used to ascertain that the metagenomics samples
+# are composed of what we expect (viruses in the virome fraction, bacteria in the
+# bacteriome one)
+################################################################################
+################################################################################
+
+
+################################### Concat Lanes ###################################
+
+#Concatenate raw reads from the same sample that were sequenced on different lanes
+rule concat_lanes:
+    input:
+        R1s=get_direction_r1,
+        R2s=get_direction_r2
+    output:
+        R1_concat="../scratch_link/concat_raw_reads/{sample}_R1_concat.fastq.gz", # these files go in scratch because they can be quickly recreated if needed
+        R2_concat="../scratch_link/concat_raw_reads/{sample}_R2_concat.fastq.gz"
+    threads: 2
+    log:
+        "logs/data_validation/lane_concatenation/{sample}_concat.log"
+    resources:
+        account = "pengel_beemicrophage",
+        runtime= "02:00:00"
+    shell:
+        "cat {input.R1s} > {output.R1_concat}; cat {input.R2s} > {output.R2_concat}; "
+
+################################### Kraken2 ###################################
+
+# This rule takes the concatenated raw reads files and runs them against the krakend db
+rule run_Krakern2:
+    input:
+        R1="../scratch_link/concat_raw_reads/{sample}_R1_concat.fastq.gz",
+        R2="../scratch_link/concat_raw_reads/{sample}_R2_concat.fastq.gz",
+        db="resources/databases/220131_costum_kraken2db"
+    output:
+        tab=temp("../results/data_validation/kraken2_output/{sample}_kraken2_report.kraken"),
+        rep="../results/data_validation/kraken2_output/Reports/{sample}_kraken2_report"
+    conda:
+        "envs/Kraken2.yaml"
+    threads: 24
+    log:
+        "logs/data_validation/kraken2/run/{sample}_kraken2.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "03:00:00"
+    shell:
+        "kraken2 --use-names --threads {threads} \
+         --db {input.db} \
+         --fastq-input --report {output.rep}  --gzip-compressed \
+         --paired {input.R1} {input.R2} \
+         > {output.tab}"
+
+# This rule parses the kraken output for further analyes
+rule parse_kraken_report:
+    input:
+        "scripts/data_validation/parse_kraken_report.py", # if you change the script, the rule runs again
+        expand("../results/data_validation/kraken2_output/Reports/{sample}_kraken2_report", sample=config["samples"])
+    output:
+        "../results/data_validation/kraken2_output/Summary/all_samples_report.txt"
+    threads: 2
+    params:
+        "../results/data_validation/kraken2_output/"
+    log:
+        "logs/data_validation/kraken2/parsing/report_parser_kraken2.log"
+    resources:
+        account = "pengel_beemicrophage",
+        runtime= "00:15:00"
+    script:
+        "scripts/data_validation/parse_kraken_report.py"
+
+
+############################# QC and Trimming ##################################
+
+# This rule does a fastQC on the raw reads
+rule fastQC_PreTrimming:
+    input:
+        R1=get_direction_r1,
+        R2=get_direction_r2
+    output:
+        temp(directory("../results/data_validation/QC/preTrimming/QC_{sample}/"))
+    threads: 2
+    log:
+        "logs/data_validation/QC/{sample}_QC.log"
+    conda:
+        "envs/fastqc.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 6000,
+        runtime= "01:00:00"
+    shell:
+        "mkdir -p {output}; "
+        "fastqc -o {output} {input.R1};"
+        "fastqc -o {output} {input.R2};"
+
+# This rule runs the trimming of the raw reads
+rule rawreads_trimming:
+    input:
+        R1="../scratch_link/concat_raw_reads/{sample}_R1_concat.fastq.gz",
+        R2="../scratch_link/concat_raw_reads/{sample}_R2_concat.fastq.gz"
+    output:
+        R1_paired="../data/trimmed_reads/{sample}_R1_paired.fastq.gz",
+        R2_paired="../data/trimmed_reads/{sample}_R2_paired.fastq.gz",
+        R1_unpaired="../data/trimmed_reads/{sample}_R1_unpaired.fastq.gz",
+        R2_unpaired="../data/trimmed_reads/{sample}_R2_unpaired.fastq.gz"
+    threads: 8
+    params:
+        nextera="../data/reference_assemblies/short_RefSeqs/NexteraPE-PE.fa",
+        q=28,
+        min_length=40
+    log:
+        "logs/data_validation/trimming/{sample}_trimming.log"
+    conda:
+        "envs/trimmomatic.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 6000,
+        runtime= "03:00:00"
+    shell:
+        "trimmomatic PE -phred33 -threads {threads} {input.R1} {input.R2} \
+         {output.R1_paired} {output.R1_unpaired} {output.R2_paired} {output.R2_unpaired} \
+         ILLUMINACLIP:{params.nextera}:2:30:10 \
+         LEADING:{params.q} TRAILING:{params.q} MINLEN:{params.min_length}"
+
+# this rule does a post trimming fast QC
+rule fastQC_PostTrimming:
+    input:
+        R1="../data/trimmed_reads/{sample}_R1_paired.fastq.gz",
+        R2="../data/trimmed_reads/{sample}_R2_paired.fastq.gz"
+    output:
+        temp(directory("../results/data_validation/QC/postTrimming/QC_{sample}/"))
+    threads: 2
+    log:
+        "logs/data_validation/QC/{sample}_postQC.log"
+    conda:
+        "envs/fastqc.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 6000,
+        runtime= "01:00:00"
+    shell:
+        "mkdir -p {output}; "
+        "fastqc -o {output} {input.R1} {input.R2}"
+
+rule parse_fastQC:
+    input:
+        preT=expand("../results/data_validation/QC/preTrimming/QC_{sample}/", sample=config["samples"]),
+        postT=expand("../results/data_validation/QC/postTrimming/QC_{sample}/", sample=config["samples"])
+    output:
+        "../results/data_validation/QC/Summary/fastQC_summary.txt"
+    threads: 2
+    log:
+        "logs/data_validation/QC/summarize_fastQC.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 6000,
+        runtime= "00:20:00"
+    script:
+        "scripts/data_validation/parse_fastqc_output.py"
+
+
+############################### Host Filtering #################################
+
+# This rule uses bbsplit to map remove reads from the honeybee genome and/or the human genomes
+rule host_filtering:
+    input:
+        R1="../data/trimmed_reads/{sample}_R1_paired.fastq.gz",
+        R2="../data/trimmed_reads/{sample}_R2_paired.fastq.gz"
+    output:
+        dir=temp(directory("../results/data_validation/host_filtering/discarded/{sample}_discarded/")), # I don't need the sam of the mapping so I delete them immediatly
+        unmapped_R1="../data/host_filtered_reads/{sample}_R1_HF.fastq.gz", # these are the filtered reads
+        unmapped_R2="../data/host_filtered_reads/{sample}_R2_HF.fastq.gz",
+        refstats="../results/data_validation/host_filtering/HF_mappings_stats/{sample}_refstats.out"
+    conda:
+        "envs/bwa_mapping.yaml"
+    threads: 25
+    params:
+        ref_Amel="../data/reference_assemblies/A_mellifera/GCF_003254395.2_Amel_HAv3.1_genomic_concat.fna",
+        ref_Hsap="../data/reference_assemblies/H_sapiens/GCF_000001405.40_GRCh38.p14_genomic.fna.gz",
+        xmx="50g"
+    log:
+        "logs/data_validation/HF/{sample}_HF.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "08:00:00"
+    shell:
+        "bbsplit.sh in1={input.R1} in2={input.R2} ref={params.ref_Amel},{params.ref_Hsap} \
+        basename={output.dir}/{wildcards.sample}_HF_discarded_%.sam \
+        refstats={output.refstats} rebuild=t nodisk=t \
+        outu1={output.unmapped_R1} outu2={output.unmapped_R2} nzo=f -Xmx{params.xmx} threads={threads}"
+
+# This rule parses the refstats output of the filering
+rule parse_filtering_refstats:
+    input:
+        files=expand("../results/data_validation/host_filtering/HF_mappings_stats/{sample}_refstats.out", sample=config["samples"])
+    output:
+        "../results/data_validation/host_filtering/HF_mappings_stats/HF_refstats.txt"
+    threads: 2
+    log:
+        "logs/data_validation/HF/HF_refstats_parsing.log"
+    params:
+        file1="../results/data_validation/host_filtering/HF_mappings_stats/file1.txt",
+        file2="../results/data_validation/host_filtering/HF_mappings_stats/file2.txt",
+        tmp="../results/data_validation/host_filtering/HF_mappings_stats/tmp.txt",
+        sams=expand("{sample}", sample=config["samples"])
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 500,
+        runtime= "00:30:00"
+    shell:
+        "echo -e 'sample\tname\tperc_unambiguousReads\tunambiguousMB\tperc_ambiguousReads\tambiguousMB\tunambiguousReads\tambiguousReads\tassignedReads\tassignedBases' > {output}; "
+        "tail -n +2 -q {input.files} > {params.file1}; "
+        "printf '%s\n' {params.sams} > {params.file2}; "
+        "awk '{{for(i=0;i<2;i++)print}}' {params.file2} > {params.tmp}; "
+        "paste -d '\t' {params.tmp} {params.file1} >> {output}"
+
+
+############################### count_reads ##################################
+# After trimming and host filtering the reads, I wanna know how much I lost in
+# Terms of reads and bases
+
+
+# this rules returns a table of read count before and after trimming
+rule count_reads_qc:
+    input:
+        preT="../scratch_link/concat_raw_reads/{sample}_R1_concat.fastq.gz",
+        postT="../data/trimmed_reads/{sample}_R1_paired.fastq.gz",
+        postF="../data/host_filtered_reads/{sample}_R1_HF.fastq.gz"
+    output:
+        temp("../results/data_validation/QC/{sample}_read_count.txt")
+    log:
+        "logs/data_validation/QC/read_count/{sample}_read_count.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 4000,
+        runtime= "00:30:00"
+    shell:
+        "touch {output}; "
+        "(./scripts/data_validation/count_reads.sh {input.preT} {input.postT} {input.postF} {output})2>{log}"
+
+rule count_reads_summary:
+    input:
+        sams=expand("../results/data_validation/QC/{sample}_read_count.txt", sample=config["samples"])
+    output:
+        "../results/data_validation/QC/Summary/read_count.txt"
+    log:
+        "logs/data_validation/QC/read_count/summary_read_count.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 4000,
+        runtime= "00:30:00"
+    shell:
+        "(awk 'FNR!=NR && FNR==1 {{next}} 1' {input.sams} > {output})2>{log}"
+
+
+################################################################################
+###############################  mOTUS  ########################################
+################################################################################
+# mOTUs is more has more taxonomical resolution than kraken, so once the reads
+# are all cleaned and filtered, I run mOTUs to obtain a genus-level composition
+# of the remaining reads (for the bacterial samples)
+################################################################################
+################################################################################
+
+# this rule runs the motu profiling
+# it is better to launch this rule with one sample first and then all the others,
+# mOTUs db download doesn't handle weell multiple files trying to download it and
+# access it at the same time and the jobs might fail.
+rule run_motus:
+    input:
+        reads1 = "../data/host_filtered_reads/{sample}_R1_HF.fastq.gz",
+        reads2 = "../data/host_filtered_reads/{sample}_R2_HF.fastq.gz"
+    output:
+        motus_temp = temp("../results/data_validation/motus_output/map/{sample}_map.motus")
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 500000,
+        runtime= "02:30:00"
+    threads: 24
+    log:
+        "logs/data_validation/motus/{sample}_motus.log"
+    conda:
+        "envs/motus-env.yaml"
+    shell:
+        "motus downloadDB; " # just leave it here to be safe - it warns and continues
+        "motus profile -f {input.reads1} -r {input.reads2} -n {wildcards.sample} -o {output.motus_temp} -t {threads}"
+
+# this roule run the mouts counting of the marker genes that map to the datbase
+rule run_motus_count:
+    input:
+        reads1 = "../data/host_filtered_reads/{sample}_R1_HF.fastq.gz",
+        reads2 = "../data/host_filtered_reads/{sample}_R2_HF.fastq.gz"
+    output:
+        motus_temp = temp("../results/data_validation/motus_output/count/{sample}_count.motus")
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 500000,
+        runtime= "02:30:00"
+    threads: 24
+    log:
+        "logs/data_validation/motus/{sample}_motus.log"
+    conda:
+        "envs/motus-env.yaml"
+    shell:
+        "motus downloadDB; " # just leave it here to be safe - it warns and continues
+        "motus profile -f {input.reads1} -r {input.reads2} -c -n {wildcards.sample} -o {output.motus_temp} -t {threads}"
+
+rule merge_motus:
+    input:
+        motus_temp = expand("../results/data_validation/motus_output/map/{sample}_map.motus", sample=config["samples"]),
+        motus_count= expand("../results/data_validation/motus_output/count/{sample}_count.motus", sample=config["samples"])
+    output:
+        motus_merged = "../results/data_validation/motus_output/Summary/samples_merged_map.motus",
+        mouts_merged_count = "../results/data_validation/motus_output/Summary/samples_merged_count.motus"
+    resources:
+        account="pengel_beemicrophage",
+        mem_mb= 500000,
+        runtime= "02:00:00"
+    threads: 12
+    log:
+        "logs/data_validation/motus/merge_motus.log"
+    conda:
+        "envs/motus-env.yaml"
+    shell:
+        "motus merge -a bee -i $(echo \"{input.motus_temp}\" | sed -e 's/ /,/g' ) > {output.motus_merged}; "
+        "motus merge -a bee -c -i $(echo \"{input.motus_count}\" | sed -e 's/ /,/g' ) > {output.mouts_merged_count}"
+
+rule parse_motus:
+    input:
+        motus_tab = "../results/data_validation/motus_output/Summary/samples_merged_map.motus",
+        motus_count = "../results/data_validation/motus_output/Summary/samples_merged_count.motus"
+    output:
+        "../results/data_validation/motus_output/Summary/motus_combined.txt"
+    resources:
+        account="pengel_beemicrophage",
+        mem_mb= 50000,
+        runtime= "03:30:00"
+    log:
+        "logs/data_validation/motus/parse_motus.log"
+    conda:
+        "envs/base_R_env.yaml"
+    script:
+        "scripts/data_validation/parse_motus.R"
+
+################################################################################
+################################## MAGS ########################################
+################################################################################
+# This part of the pipleine takes takes host filtered reads and reconstructs MAGS
+# This part of the pipeline is divided in several steps:
+#   (1): The host-filtered reads are assembled using metaspades
+#   (2): backmapping where the read of each sample are mapped against the assembly
+#        of every other sample
+#   (3): scaffold ae binned into MAGS in functon of their coverage across samples
+#        using metabat2
+################################################################################
+################################################################################
+
+# (1)
+# the following rules use spades to assemble the metagenomes of every sample.
+# then assembly are filtered in function of length and coverage
+
+rule assemble_host_filtered:
+    input:
+        R1 = "../data/host_filtered_reads/{sample}_R1_HF.fastq.gz",
+        R2 = "../data/host_filtered_reads/{sample}_R2_HF.fastq.gz"
+    output:
+        scaffolds="../results/assembly/HF_assembly/{sample}_metaspades/{sample}_contigs.fasta",
+        graph = "../results/assembly/HF_assembly/{sample}_metaspades/{sample}_assembly_graph.fastg",
+        spades_log = "../results/assembly/HF_assembly/{sample}_metaspades/{sample}_spades.log"
+    params:
+        memory_limit = 200,
+        dir=directory("../scratch_link/assembly/HF_assembly/{sample}_metaspades/")
+    threads: 40
+    resources:
+        account="pengel_beemicrophage",
+        mem_mb= 250000,
+        runtime= "24:00:00"
+    log:
+        "logs/assembly/HF/{sample}_assemble_HF.log"
+    benchmark:
+        "logs/assembly/HF/{sample}_assemble_HF.benchmark"
+    conda:
+        "envs/assembly.yaml"
+    shell:
+        "spades.py --meta --pe1-1 {input.R1} --pe1-2 {input.R2} \
+        -o {params.dir} \
+        -k 21,33,55,77,99,127 -m {params.memory_limit} -t {threads}; "
+        "mv {params.dir}/contigs.fasta {output.scaffolds}; "
+        "mv {params.dir}/assembly_graph.fastg {output.graph}; "
+        "mv {params.dir}/spades.log {output.spades_log}; "
+
+rule parse_HF_assemblies:
+    input:
+        scaffolds = "../results/assembly/HF_assembly/{sample}_metaspades/{sample}_contigs.fasta"
+    output:
+        parsed_scaffold="../results/assembly/HF_assembly/{sample}_metaspades/{sample}_contigs_parsed.fasta",
+        filt_tab=temp("../results/assembly/HF_assembly/{sample}_contigs_tab.txt")
+    params:
+        length_t = 1000,
+        cov_t = 1
+    conda: "envs/mags_env.yaml"
+    resources:
+        account="pengel_beemicrophage",
+        mem_mb= 2000,
+        runtime= "00:30:00"
+    log:
+        "logs/assembly/HF/{sample}_parse_assembly_HF.log"
+    script:
+        "scripts/assembly/parse_spades_metagenome.py"
+
+rule aggragate_filtering_tabs:
+    input:
+        expand("../results/assembly/HF_assembly/{sample}_contigs_tab.txt", sample=config["samples"])
+    output:
+        all_filt_tab="../results/assembly/HF_assembly/all_HFassemblies_summary_tab.txt"
+    resources:
+        account="pengel_beemicrophage",
+        mem_mb= 2000,
+        runtime= "00:15:00"
+    log:# (2)
+        "logs/assembly/HF/aggragate_filterig.log"
+    benchmark:
+        "logs/assembly/HF/aggragate_filterig.benchmark"
+    shell:
+        "echo -e 'sample\tcontig\tlength\tcov\taccepted' > {output}; "
+        "cat {input} >> {output}"
+
+# (2)
+# The following rules perform a mapping of all samples against all samples
+# to obtain a depth profile for the assembly of each sample
+
+rule backmapping:
+    input:
+        assembly = expand("../results/assembly/HF_assembly/{sam_name2}B_metaspades/{sam_name2}B_contigs_parsed.fasta", sam_name2=config["sam_names"]), # we bin only bacteria
+        R1 = "../data/host_filtered_reads/{sam_name}B_R1_HF.fastq.gz",
+        R2 = "../data/host_filtered_reads/{sam_name}B_R2_HF.fastq.gz"
+    output:
+        sam=temp(expand("../scratch_link/MAG_binning/backmapping/{{sam_name}}B/{{sam_name}}B_mapped_to_{sam_name2}B_contigs_parsed.sam", sam_name2=config["sam_names"])),
+        refstats="../results/MAG_binning/backmapping/{sam_name}B/{sam_name}B_refstats.txt"
+    params:
+        dir="../scratch_link/MAG_binning/backmapping/{sam_name}B/",
+        all_assemblies=",".join(expand("../results/assembly/HF_assembly/{sam_name}B_metaspades/{sam_name}B_contigs_parsed.fasta", sam_name=config["sam_names"])),
+        xmx="200g"
+    resources:
+        account="pengel_beemicrophage",
+        runtime="72:00:00",
+        mem_mb = "250000"
+    threads: 15
+    conda: "envs/mags_env.yaml"
+    log:
+        "logs/MAGs/backmapping/{sam_name}B_backmapping.log"
+    benchmark: "logs/MAGs/backmapping/{sam_name}B_backmapping.benchmark"
+    shell:
+        "bbsplit.sh in1={input.R1} in2={input.R2} ref={params.all_assemblies} \
+        basename={params.dir}/{wildcards.sam_name}B_mapped_to_%.sam \
+        refstats={output.refstats} rebuild=t nodisk=t ambiguous2=all \
+        nzo=f -Xmx{params.xmx} threads={threads}"
+
+
+rule backmapping_depths:
+    input:
+        sam= "../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.sam"
+    output:
+        bam= temp("../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.bam"),
+        depth= temp("../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.depth")
+    resources:
+        account="pengel_beemicrophage",
+        runtime="10:00:00",
+        mem_mb = "10000"
+    threads: 15
+    conda: "envs/mags_env.yaml"
+    log:
+        "logs/MAGs/backmapping/{sam_name}B_{sam_name2}_depth.log"
+    benchmark: "logs/MAGs/backmapping/{sam_name}B_{sam_name2}_depth.benchmark"
+    shell:
+        "conda install -c bioconda samtools=1.9 --force-reinstall; "
+        "samtools view -bh {input.sam} | samtools sort - > {output.bam}; "
+        "export OMP_NUM_THREADS={threads}; "
+        "jgi_summarize_bam_contig_depths --outputDepth {output.depth} {output.bam}"
+
+rule merge_depths:
+    input:
+        depth_files = expand("../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{{sam_name2}}B_contigs_parsed.depth", sam_name=config["sam_names"])
+    output:
+        depth_file_merged = "../results/MAG_binning/backmapping/merged_depths/{sam_name2}B_global_depth.txt"
+    resources:
+        account="pengel_beemicrophage",
+        runtime="1:00:00",
+        mem_mb = "10000"
+    threads: 4
+    conda: "envs/mags_env.yaml"
+    log: "logs/MAGs/backmapping/{sam_name2}B_merge_depth.log"
+    shell:
+        "scripts/MAGs/merge_depths.pl {input.depth_files} > {output.depth_file_merged}"
+
+# (3)
+# The following rules are used to bin the contigs of every assembly into MAGs
+# using the mapping information of section 2
+
+rule binning:
+    input:
+        assembly = "../results/assembly/HF_assembly/{sam_name2}B_metaspades/{sam_name2}B_contigs_parsed.fasta",
+        depth_file_merged = "../results/MAG_binning/backmapping/merged_depths/{sam_name2}B_global_depth.txt"
+    output:
+        marker = "../results/MAG_binning/bins/{sam_name2}B-metabat2.bins.done",
+    params:
+        min_contig_size=2500, # Metabat2 default
+        min_bin_size=200000, # Metabat2 default
+        max_edges=200, # Metabat2 default
+        min_cv=1, # Metabat2 default
+    resources:
+        account="pengel_beemicrophage",
+        mem_mb= 2000,
+        runtime= "01:00:00"
+    threads: 16
+    conda: "envs/mags_env.yaml"
+    log: "logs/MAGs/binning/{sam_name2}B_binning.log"
+    benchmark: "logs/MAGs/binning/{sam_name2}B_binning.benchmark"
+    shell:
+        "bins_dir=${{{output.marker}/\.bins*/}}; "
+        "prefix=${{{output.marker}/\.bins*/}}/{wildcards.sam_name2}B-metabat2/MAG; "
+        "metabat2 -i {input.assembly} -a {input.depth_file_merged} -o ${{prefix}} --minContig {params.min_contig_size} --maxEdges {params.max_edges} -x {params.min_cv} --numThreads {threads}"
+
+
+################################################################################
+################################## MAPPING #####################################
+################################################################################
+
+rule build_ref_index:
+    input:
+        ref="../scratch_link/Database_play/dRep_out/"
+    output:
+        dir=directory("../scratch_link/Database_play/hb_drep_indx/")
+    conda:
+        "envs/map_env.yaml"
+    threads: 25
+    params:
+        basename="hb_bacteria_drep_index",
+        ref=get_files_commas("../scratch_link/Database_play/dRep_out/dereplicated_genomes/")
+        #ref="../data/reference_assemblies/large_refs/GB_ViralClusters.fna", # for phages
+        #ref="../data/reference_assemblies/hb_bacteria/reduced/honeybee_gut_microbiota_db_red.fna", #for bacteria
+    log:
+        "logs/mapping/build_bowtie_index.log"
+    resources:
+        account= "pengel_beemicrophage",
+        mem_mb= 20000,
+        runtime= "01:00:00"
+    shell:
+        "mkdir -p {output.dir}; "
+        "bowtie2-build {params.ref} {output.dir}/{params.basename} --threads {threads}"
+
+rule MapReads:
+    input:
+        dir="../scratch_link/Database_play/hb_drep_indx/",
+        R1="../data/host_filtered_reads/{sample}{type}_R1_HF.fastq.gz",
+        R2="../data/host_filtered_reads/{sample}{type}_R2_HF.fastq.gz",
+    output:
+        # dir=directory("../results/mapping/mapdata/"),
+        # sam=temp("../results/mapping/mapdata_virus/{sample}_mapping.sam"),
+        sam=temp("../results/mapping/mapdata_{type}/{sample}{type}_mapping.sam"),
+        # unmapped_R1="../results/mapping/{sample}_refmappings/{sample}_R1_unmapped.fq",
+        # unmapped_R2="../results/mapping/{sample}_refmappings/{sample}_R2_unmapped.fq"
+    wildcard_constraints:
+        sample="\d+"
+    conda:
+        "envs/map_env.yaml"
+    threads: 25
+    params:
+        basename="hb_bacteria_drep_index",
+        maxins=900,
+        minins=50
+        #ref="../data/reference_assemblies/large_refs/GB_ViralClusters.fna", # for phages
+        #ref="../data/reference_assemblies/hb_bacteria/reduced/honeybee_gut_microbiota_db_red.fna", #for bacteria
+    log:
+        "logs/mapping/{sample}{type}_bbmap_mapping.log"
+    resources:
+        account= "pengel_beemicrophage",
+        mem_mb= 200000,
+        runtime= "07:00:00"
+    shell:
+        "bowtie2 -x {input.dir}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --maxins {params.maxins} --minins {params.minins} --threads {threads}"
+        # "(bbmap.sh in1={input.R1} in2={input.R2} ref={params.ref} out={output.sam} \
+        # rebuild=t nodisk=t outu1={output.unmapped_R1} --use_full_fasta_header \
+        # outu2={output.unmapped_R2} nzo=f ambiguous2=all ---threadsXmx{params.xmx} threads={threads})2> {log}"
+
+rule generate_bam:
+    input:
+        #sam="../results/mapping/mapdata_virus/{sample}_mapping.sam"
+        sam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.sam"
+    output:
+        #bam="../results/mapping/mapdata_virus/{sample}_mapping.bam",
+        bam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
+        cf=temp("../results/mapping/{sample}{type}_library_count.tsv")
+    wildcard_constraints:
+        sample="\d+"
+    conda:
+        "envs/metapop_env.yaml"
+    threads: 2
+    log:
+        "logs/mapping/{sample}{type}_prepare_metapop.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 20000,
+        runtime= "01:00:00"
+    shell:
+        "samtools view -S -b {input.sam} > {output.bam}; "
+        "touch {output.cf}; "
+        "s=$(basename {output.bam}); "
+        "lib=${{s%.*}}; "
+        "count=$(samtools view -c {output.bam}); "
+        'echo -e "${{lib}}\t${{count}}" >> {output.cf}'
+
+
+rule get_unmapped:
+    input:
+        bam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.bam"
+    output:
+        sorted_unmapped=".../results/mapping/mapout_{sample}{type}/{sample}{type}_unmapped.sorted.bam",
+        unmapped="../results/mapping/mapout_{sample}{type}/{sample}{type}_unmapped.bam",
+        unmapped_R1="../results/mapping/mapout_{sample}{type}/{sample}{type}_R1_unmapped.fastq",
+        unmapped_R2="../results/mapping/mapout_{sample}{type}/{sample}{type}_R2_unmapped.fastq"
+    wildcard_constraints:
+        sample="\d+"
+    conda:
+        "envs/manip_bap_env.yaml"
+    threads: 8
+    log:
+        "logs/mapping/unmapped/{sample}{type}_extract_unmapped.log"
+    resources:
+        account= "pengel_beemicrophage",
+        mem_mb= 20000,
+        runtime= "01:00:00"
+    shell:
+        "samtools view -b -f 4 -@ {threads} {input.bam} > {output.unmapped}; "
+        "samtools sort {output.unmapped} -n -@ {threads} -o {output.sorted_unmapped}; "
+        "bedtools bamtofastq -i {output.sorted_unmapped} -fq {output.unmapped_R1} -fq2 {output.unmapped_R2}"
+
+################################################################################
+################################## METAPOP #####################################
+################################################################################
+rule mappings_stats:
+    input:
+        bam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
+    output:
+        "../results/mapping/mapout_{sample}{type}/{sample}{type}_mapstats.tsv"
+    wildcard_constraints:
+        sample="\d+"
+    conda:
+        "envs/map_env.yaml"
+    log:
+        "logs/mapping/{sample}{type}_mapstats.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 20000,
+        runtime= "01:00:00"
+    threads: 8
+    shell:
+        "samtools flagstat {input.bam} -@ {threads} > {output}"
+
+acc="B"
+
+rule merge_mapping_stats:
+    input:
+        filelist=expand("../results/mapping/mapout_{sample}{type}/{sample}{type}_mapstats.tsv", sample=config["sam_names"], type=acc)
+    output:
+        "../results/mapping/all_{type}_mapstats.tsv"
+    wildcard_constraints:
+        sample="\d+"
+    conda:
+        "envs/base_R_env.yaml"
+    log:
+        "logs/mapping/{type}_merge_mapstats.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "00:15:00"
+    threads: 2
+    script:
+        "scripts/mapping/format_flagstats.R"
+
+rule megre_libs:
+    input:
+        expand("../results/mapping/{sample}{type}_library_count.tsv", sample=config["sam_names"], type=acc)
+    output:
+        "../results/mapping/{type}_library_count.tsv"
+    threads: 2
+    log:
+        "logs/mapping/concat_lib_{type}.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 2000,
+        runtime= "01:00:00"
+    shell:
+        "cat {input} >> {output}"
+
+
+
+# To make metapop run I modified the environment by using the script that are in the etapop github page instead of the ones in conda
+rule run_metapop_virus:
+    input:
+        bams="../results/mapping/mapdata_virus/",
+        cf="../results/mapping/virus_library_count.tsv",
+        ref_bact="../data/reference_assemblies/viral_clusters_GB/"
+    output:
+        directory("../results/metapop/viruses/")
+    conda:
+        "envs/metapop_env.yaml"
+    threads: 25
+    params:
+        lib="/work/FAC/FBM/DMF/pengel/beemicrophage/mndiaye1/PHOSTER/workflow/.snakemake/conda/6ee4f263563c6d0db030078388037b81/lib/R/library/"
+    log:
+        "logs/metapop/run_metapop.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 70000,
+        runtime= "07:00:00"
+    shell:
+        "(metapop --input_samples {input.bams} --reference {input.ref_bact} --norm {input.cf} -l {params.lib} -o {output} --threads {threads})2> {log}"
+
+# rule run_metapop_bacteria:
+#     input:
+#         bams="../results/mapping/mapdata_{type}/",
+#         cf="../results/mapping/{type}_library_count.tsv",
+#         ref_bact="../scratch_link/Database_play/dRep_out/dereplicated_genomes/"
+#     output:
+#         directory("../results/metapop/{type}/")
+#     conda:
+#         "envs/metapop_env.yaml"
+#     threads: 46
+#     params:
+#         lib="/work/FAC/FBM/DMF/pengel/beemicrophage/mndiaye1/PHOSTER/workflow/.snakemake/conda/6ee4f263563c6d0db030078388037b81/lib/R/library/"
+#     log:
+#         "logs/metapop/run_metapop_{type}.log"
+#     resources:
+#         account = "pengel_beemicrophage",
+#         mem_mb = 200000,
+#         disk_mb= 10000,
+#         runtime= "72:00:00"
+#     shell:
+#         "(metapop --input_samples {input.bams} --reference {input.ref_bact} --norm {input.cf} -l {params.lib} --whole_genomes -o {output} --threads {threads})2> {log}"
+
+rule run_metapop_bacteria_test:
+    input:
+        bams="../results/mapping/mapdata_{type}_test/",
+        cf="../results/mapping/{type}test_library_count.tsv",
+        ref_bact="../scratch_link/Database_play/dRep_out/dereplicated_genomes/"
+    output:
+        directory("../results/metapop/{type}_test/")
+    conda:
+        "envs/metapop_env.yaml"
+    wildcard_constraints:
+        sample="\d+"
+    threads: 25
+    log:
+        "logs/metapop/run_metapop_{type}test.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 200000,
+        runtime= "72:00:00"
+    shell:
+        "(metapop --input_samples {input.bams} --reference {input.ref_bact} --norm {input.cf} --whole_genomes -o {output} --threads {threads})2> {log}"
+
+################################################################################
+################################## INSTRAIN ####################################
+################################################################################
+
+rule generate_genelist:
+    input:
+        ref="../data/reference_assemblies/hb_bacteria/derp_db/drep_db.fasta"
+    output:
+        "../results/inStrain/drep_db_genes.fa"
+    conda:
+        "envs/inStrain.yaml"
+    threads: 25
+    log:
+        "logs/instrain/generate_gene_list.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 20000,
+        runtime= "1:00:00"
+    shell:
+        "prodigal -i {input.ref} -d {output}"
+
+rule instrain_profile:
+    input:
+        bam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
+        ref="../data/reference_assemblies/hb_bacteria/derp_db/drep_db.fasta",
+        genL="../results/inStrain/drep_db_genes.fa"
+    output:
+        directory("../results/inStrain/profile_{type}/{sample}{type}_profile/")
+    threads: 25
+    conda:
+        "envs/inStrain.yaml"
+    log:
+        "logs/instrain/{sample}{type}_profile.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 200000,
+        runtime= "72:00:00"
+    params:
+        genomes_id=get_files_commas("../scratch_link/Database_play/dRep_out/dereplicated_genomes/", sep=" ")
+    shell:
+        "(inStrain profile {input.bam} {input.ref} -o {output} -p {threads} -g {input.genL} -s {params.genomes_id})2> {log}"
+
+
+
+
+
+################################ Unmapped reads assembly #######################
+rule unmapped_metaspades_assembly:
+    input:
+        unmapped_R1="../results/mapping/mapout_{sample}{type}/{sample}{type}_R1_unmapped.fastq",
+        unmapped_R2="../results/mapping/mapout_{sample}{type}/{sample}{type}_R2_unmapped.fastq"
+    output:
+        dir=directory("../results/assembly/unmapped_assembly/{sample}{type}_metaspades_unampped/"),
+        file="../results/assembly/unmapped_assembly/{sample}{type}_metaspades_unampped/{sample}{type}_unmapped_contigs.fasta"
+    threads: 25
+    wildcard_constraints:
+        sample="\d+"
+    log:
+        "logs/assembly/unmapped_assembly/{sample}{type}_unmapped_assembly.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 120000,
+        runtime= "04:00:00"
+    conda:
+        "envs/assembly.yaml"
+    shell:
+        "spades.py --meta --pe1-1 {input.unmapped_R1} --pe1-2 {input.unmapped_R2} \
+        -o {output.dir} \
+        -k 21,33,55,77,99,127 -m 120 -t {threads}; "
+        "mv {output.dir}/contigs.fasta {output.file}"
+
+
+
+
+
+
+
+###############################################################################
+###################################################################################
+##################################################################################
+sample_nam="francesco"
+# This rule creates both a file containing genereal info for all the assemblies and
+# a fasta with all the contigs
+rule parse_unmapped_assemblies:
+    input:
+        expand("../results/data_validation/reads_mapping/unmapped_asssembly/{sample}_metaspades_unampped/{sample}_unmapped_contigs.fasta", sample=sample_nam)
+    output:
+        "../results/data_validation/reads_mapping/unmapped_asssembly/assemblies_summary.txt",
+        "../results/data_validation/reads_mapping/unmapped_asssembly/P_all_filtered_contigs.fasta"
+    threads: 2
+    log:
+        "logs/data_validation/reads_mapping/parse_assemblies.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 4000,
+        runtime= "00:30:00"
+    script:
+        "scripts/data_validation/assembly_data_parser.py"
+
+
+# blast the unmapped contigs and return the best hit
+rule blast_P_unmapped_contigs:
+    input:
+        "../results/data_validation/reads_mapping/unmapped_asssembly/P_all_filtered_contigs.fasta"
+    output:
+        "../results/data_validation/reads_mapping/unmapped_asssembly/blast/P_filtered_contigs_blastout.txt"
+    log:
+        "logs/data_validation/unmapped_assembly/blast_long_unmapped.log"
+    conda:
+        "envs/blast.yaml"
+    threads: 25
+    resources:
+        mem_mb = 4000,
+        runtime= "10:00:00",
+        account = "pengel_beemicrophage"
+    shell:
+        "./scripts/data_validation/unmapped_blast.sh {input} {output} {threads}"
+
+
+rule cd_hit_unmapped_assembly:
+    input:
+        "../results/data_validation/reads_mapping/unmapped_asssembly/P_all_filtered_contigs.fasta"
+    output:
+        clst_80="../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_80.out",
+        clst_100="../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_100.out"
+    log:
+        "logs/data_validation/unmapped_assembly/unmapped_clustering.log"
+    conda:
+        "envs/cd-hit.yaml"
+    threads: 4
+    resources:
+        account = "pengel_beemicrophage",
+    shell:
+        "cd-hit-est -d 0 -i {input} -o {output.clst_80} -c 0.8; "
+        "cd-hit-est -d 0 -i {input} -o {output.clst_100} -c 1"
+
+rule parse_unmapped_clusters:
+    input:
+        "../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_80.out",
+        "../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_100.out"
+    output:
+        "../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_parsed_80.txt",
+        "../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_parsed_100.txt"
+    threads: 2
+    conda:
+        "envs/base_R_env.yaml"
+    log:
+        "logs/data_validation/reads_mapping/parse_assemblies.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 4000,
+        runtime= "00:30:00"
+    script:
+        "scripts/data_validation/parse_cd_hit.R"
+
+
+################################################################################
+########################### ASSEMBLY ###########################################
+################################################################################
+rule merge_reads:
+    input:
+        R1="../data/trimmed_reads/{sample}_R1_paired.fastq.gz",
+        R2="../data/trimmed_reads/{sample}_R2_paired.fastq.gz"
+    output:
+        dir=directory("../data/merged_reads/{sample}_merging_output/"),
+        fw="../data/merged_reads/{sample}_merging_output/{sample}.unassembled.forward.fastq",
+        rv="../data/merged_reads/{sample}_merging_output/{sample}.unassembled.reverse.fastq",
+        merged="../data/merged_reads/{sample}_merging_output/{sample}.assembled.fastq"
+    threads: 20
+    log:
+        "logs/assembly/{sample}_reads_merging.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 6000,
+        runtime= "00:20:00"
+    conda:
+        "envs/trimmomatic.yaml"
+    shell:
+        "mkdir -p {output.dir}; "
+        "pear -f {input.R1} -r {input.R2} -o {output.dir}/{wildcards.sample} -n 40 -j {threads} -v 1; "# is -v=1 good?
+        "touch {output.fw} {output.rv} {output.merged}"
+
+
+rule metaspades_assembly:
+    input:
+        R1="../data/merged_reads/{sample}_merging_output/{sample}.unassembled.forward.fastq",
+        R2="../data/merged_reads/{sample}_merging_output/{sample}.unassembled.reverse.fastq",
+        merged="../data/merged_reads/{sample}_merging_output/{sample}.assembled.fastq"
+    output:
+        dir=directory("../data/assemblies/metaspades/{sample}_metaspades_assembly/"),
+        file="../data/assemblies/metaspades/{sample}_metaspades_assembly/{sample}_contigs.fasta"
+    threads: 40
+    log:
+        "logs/assembly/metaspades/{sample}_metaspades_assembly.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 120000,
+        runtime= "04:00:00"
+    conda:
+        "envs/assembly.yaml"
+    shell:
+        "spades.py --meta --merged {input.merged} \
+        -s {input.R1} -s {input.R2} -o {output.dir} \
+        -k 21,33,55,77,99,127 -m 120 -t {threads}; "
+        "mv {output.dir}/contigs.fasta {output.file}"
+
+rule quast_QC:
+    input:
+        contigs=expand("../data/assemblies/{assembler}/{sample}_{assembler}_assembly/{sample}_contigs.fasta", assembler=["metaspades"], sample=sample_nam),
+        reads=expand("../data/merged_reads/{sample}_merging_output/{sample}.assembled.fastq", sample=sample_nam)
+    output:
+        directory("../results/assembly/quast/")
+    threads: 25
+    log:
+        "logs/assembly/quast/quast_QC.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 50000,
+        runtime= "03:00:00"
+    conda:
+        "envs/quast_env.yaml"
+    shell:
+        "metaquast.py {input.contigs} -o {output} \
+         --contig-thresholds 1000,2000,2500,3000,5000,7500,10000,15000,20000,25000,30000,35000,40000,45000,50000,55000,60000,70000,80000,90000,100000 \
+         -t {threads} --unique-mapping"
+         #--mp12 {input.reads}

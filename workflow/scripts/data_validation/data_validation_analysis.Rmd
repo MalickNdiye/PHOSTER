@@ -1,0 +1,817 @@
+---
+title: "Data validation analysis"
+author: "Mam Malick Sy Ndiaye"
+date: "1/28/2022"
+output: html_document
+---
+
+# Introduction
+
+This report is aimed at analysing the quality of illumina sequenced data. In this project, I sequence both the virome and the bacteriome of individual bees. Thus, I expect the virome to be composed mainly by bacteriophages and the bacteriome to have the typical composition of the honey bee gut microbiota.
+
+# Setup
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = F)
+library(RColorBrewer)
+library(ggplot2)
+library(tidyverse)
+library(knitr)
+library(stringr)
+library(ComplexHeatmap)
+if("wesanderson" %in% rownames(installed.packages())){
+  library(wesanderson)
+} else{
+  install.packages("wesanderson", repos = "http://cran.us.r-project.org")
+}
+
+if("reshape2" %in% rownames(installed.packages())){
+  library(reshape2)
+} else{
+  install.packages("reshape2", repos = "http://cran.us.r-project.org")
+}
+library(reshape2)
+library(scales)
+library(UpSetR)
+library(grid)
+library(plyr)
+library(viridis)
+source("../useful_func.R")
+```
+ 
+
+# QC
+
+```{r}
+fastqc_p<- "../../../results/data_validation/QC/Summary/fastQC_summary.txt"
+fastqc<- read.table(fastqc_p, header=T, sep="\t") %>%
+          dplyr::mutate(direction=ifelse(direction == "paired.fastq.gz", lane, direction),
+                        lane=ifelse(lane==direction,"NA", lane))
+
+
+read_count<- "../../../results/data_validation/QC/Summary/read_count.txt"
+reads<- read.table(read_count, header=T)
+```
+
+## FastQC
+```{r read count before and after trimming}
+fastqc2<- fastqc %>% group_by(sample, trimming) %>% 
+  dplyr::summarise(total_reads=sum(total_reads)) %>%
+  dplyr::mutate(sam_type=ifelse(grepl("P",sample), "virome","bacteriome"),
+                aim=ifelse(sam_type=="bacteriome", 55e6, 5e6),
+                sam_name=str_sub(sample, 1, -2))
+
+ggplot(fastqc2, aes(x=reorder(sam_name, as.numeric(sam_name)), y=total_reads, 
+                    fill=factor(trimming, levels=c("pre", "post"))))+
+  geom_bar(stat = "identity", position = position_dodge())+
+  geom_hline(aes(yintercept=aim), linetype="dashed")+
+  guides(fill=guide_legend(title = "Trimming"))+
+  theme_classic()+
+  facet_grid(sam_type~., scales="free_y")
+```
+
+
+
+```{r Fastqc report}
+my_pal=setNames(c("green", "yellow", "red"),c(1, 2, 3))
+
+fastqc3<- fastqc%>% select(! c("total_reads", "poor_Qual_reads", "read_length")) %>% 
+  unite(entry, sample, trimming, direction,lane, id) %>% column_to_rownames(var="entry")
+
+fastqc3[fastqc3=="pass"]<- as.numeric(1)
+fastqc3[fastqc3=="warn"]<- 2
+fastqc3[fastqc3=="fail"]<- 3
+fastqc4<- as.matrix(fastqc3)
+fastqc4<- apply(fastqc4, 2, as.numeric)
+rownames(fastqc4)<- rownames(fastqc3)
+
+Heatmap(t(fastqc4),col=my_pal,
+        show_row_dend=F,show_column_dend=F,
+        column_names_gp = gpar(fontsize = 5,  fontface = "bold"))
+
+fastqc$sample[fastqc$trimming=="pre" & fastqc$length_distribution=="pass"]
+```
+
+
+## summary
+I used fastQC to quality check the reads and trimmomatic to trim them (see snakefile). here I'm checking the percentage of reads that are retained after the trimming. let's begin by opening the file containing the read count before and after the trimming:
+```{r open read count}
+reads<- reads %>% mutate(retained_reads_QC=(reads_postQC/reads_preQC)*100, retained_reads_filt=(reads_postFilt/reads_preQC)*100) # calculate percentage of retained reads
+
+kable(reads)
+
+m_reads<-melt(reads, varnames=c('reads_preQC', 'reads_postQC', "reads_postFilt"), id.vars =c("bases_preQC","bases_postQC", "bases_postFilt", "sample", "retained_reads_QC", "retained_reads_filt"),  value.name = "reads", variable.name = "stage") #prepare data for plotting
+
+kable(head(m_reads))
+```
+
+now let's plot the number of reads before and after trimming:
+```{r plot read loss after QC}
+m_reads2<- m_reads %>% filter(sample!="LDP")
+
+col=c("azure4", "azure3", "azure2")
+names(col)<- unique(m_reads2$stage)
+col<-col[m_reads2$stage]
+
+nam<- c("Before QC", "After QC", "After Filtering")
+names(nam)<- c("reads_preQC", "reads_postQC", "reads_postFilt")
+nam<- nam[m_reads2$stage]
+
+m_reads2<- m_reads2 %>% mutate("sam_type"=ifelse(grepl("P", sample), "Virome", "Bacteriome"),
+                             "sam_name"=unlist(strsplit(sample, split = "B|P")),
+                             "hline"=ifelse(grepl("P", sample), 5e6, 5.5e7))
+m_reads2$retained_reads_QC[m_reads2$stage=="reads_preQC"]<- NA
+m_reads2$retained_reads_filt[m_reads2$stage=="reads_preQC"]<- NA
+m_reads2$retained_reads_filt[m_reads2$stage=="reads_postQC"]<- NA
+m_reads2$retained_reads_QC[m_reads2$stage=="reads_postFilt"]<- NA
+
+coalesce(m_reads2$retained_reads_QC, m_reads2$retained_reads_filt)
+
+labs=paste(format(coalesce(m_reads2$retained_reads_QC, m_reads2$retained_reads_filt), digits=2), "%", sep="")
+labs[labs=="  NA%"] <- ""
+
+ggplot(m_reads2,aes(x = reorder(sam_name, as.numeric(sam_name)), y=reads, fill=stage))+
+  geom_bar(stat="identity", position=position_dodge())+
+  #scale_y_continuous(breaks = c(0,1e6, seq(1e6, max(m_reads$reads), by = 1e7)))+
+  geom_text(aes(x=sam_name, label=labs),  position=position_dodge(0.9), size=3, angle =90)+
+  geom_hline(aes(yintercept = hline), col="red", linetype="dotted")+
+  scale_fill_manual(values=col, name = "QC", labels = nam)+
+  labs(x="Sample")+
+  ggtitle("Quality score >= 25")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size = 10, angle = 90, hjust = .5,
+                                   vjust = .5, face
+                                   = "plain"),
+        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"))+
+  facet_grid(sam_type~., scales = "free_y")
+  
+```
+
+# Community composition
+
+## Kraken2
+I used Kraken2 to estimate the community composition of my samples from raw reads. The database contained all the bacterial, viral and human sequences from ref seq, as well as the viral cluster identified in Bonilla-rosso et al., 2019. I want to plot the composition at every taxonomic level, but I'm particularly interested in the domain-level, genus-level and specie-level composition.
+
+let's open the kraken2 report:
+```{r open kraken report dataframe, warning=F}
+setwd("../../")
+report<- "../results/data_validation/kraken2_output/Summary/all_samples_report.txt"
+#snakemake@input[1] 
+
+krk_df<- read.csv(report, header=T, sep="\t")
+
+unique(krk_df$sample)
+length(unique(krk_df$sample))
+```
+
+### Domain-level composition
+
+```{r}
+my_pal<- palette("Pastel1")[c(1:4, 9)]
+dom_names<- rev(unique(factor(
+  krk_df$taxon[c(krk_df$rank_code=="U"|krk_df$rank_code=="D")])))
+names(my_pal)<- dom_names
+show_col(my_pal)
+
+
+plt_krk_df<- krk_df %>% mutate("sam_name"= unlist(strsplit(sample, split = "B|P"))) %>% filter( c(rank_code=="U"|rank_code=="D")) 
+my_pal<-my_pal[plt_krk_df$taxon]
+
+krk_comm_plt<- 
+  ggplot(plt_krk_df, aes(x=reorder(sam_name, as.numeric(sam_name)),
+                                      y=percentage_of_reads, 
+                                      fill=factor(taxon, levels = c("unclassified",
+                                                                    "Eukaryota",
+                                                                  "Bacteria","GB_VCs","Viruses")))) +
+  geom_bar(position="stack", stat="identity") +
+  labs(x="Sample", y="Percentage of Reads") +
+  scale_fill_manual(values = my_pal) +
+  scale_y_continuous(breaks = seq(0, 100, by = 5))+
+  guides(fill = guide_legend(title = "Domain")) +
+  theme_classic()+
+  facet_grid(sample_type~.)
+
+krk_comm_plt
+```
+
+### Phylum-level composition
+```{r}
+krk_df %>% filter(c((rank_code=="P" | rank_code=="U") & percentage_of_reads>0.01)) %>% 
+  filter(sample_type=="bacteriome") %>%
+  ggplot(aes(x=sample, y=percentage_of_reads, fill=fct_inorder(taxon))) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_brewer(palette = "Set3") +
+  guides(fill = guide_legend(title = "Phylum")) +
+  theme_classic()
+```
+
+### Genus-level composition
+
+```{r genus level composition}
+tr<-1
+
+krk_df_genus<- krk_df %>%  mutate("sam_name"= unlist(strsplit(sample, split = "B|P")),
+                  "tax_plt"=ifelse((percentage_of_reads>tr), taxon,
+                                   paste("other<", tr,"%", sep=""))) %>%
+  filter(c((rank_code=="G" | rank_code=="U" | taxon=="GB_VCs")))%>%
+  filter(sample_type=="bacteriome")
+
+levs<- get_gen_col(krk_df_genus$taxon, krk_df_genus$percentage_of_reads, threshold = tr)[[1]]
+col_list<- get_gen_col(krk_df_genus$taxon, krk_df_genus$percentage_of_reads,threshold = tr)[[2]]
+
+ggplot(krk_df_genus, aes(x=reorder(sam_name, as.numeric(sam_name)), y=percentage_of_reads,
+           fill=factor(tax_plt, levels = levs))) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = col_list) +
+  guides(fill = guide_legend(title = "Genus")) +
+  labs(x="", y="Relative Abundance")+
+  theme_classic()+
+    theme(axis.text.x = element_text(size = 20, angle = 90, hjust = .5,
+                                   vjust = .5, face
+                                   = "plain"),
+        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain")) 
+```
+
+##mOTUS
+```{r open mOTUs report dataframe, warning=F}
+report<- "../../../results/data_validation/motus_output/Summary/motus_combined.txt"
+df_motus<- read.csv(report, header=T, sep="\t")
+
+condense_motu <- function(motu){
+  motu_condensed = strsplit(motu, " ")[[1]][1]
+  return(motu_condensed)
+}
+
+df_motus_combined <- df_motus %>% 
+  group_by(Sample) %>%
+  dplyr::mutate("rel_ab"=rel_ab/sum(rel_ab)) %>%
+                      group_by(Sample, motu) %>%
+                              dplyr::mutate(mean_rel_ab = mean(rel_ab)) %>%
+                                dplyr::mutate(motu_condensed = Vectorize(condense_motu)(motu)) 
+
+unique(df_motus_combined$Sample)
+length(unique(df_motus_combined$Sample))
+```
+
+```{r}
+condense_motu <- function(motu){
+  motu_condensed = strsplit(motu, " ")[[1]][1]
+  return(motu_condensed)
+}
+
+motu_list <- df_motus_combined %>%
+              pull(motu) %>% unique
+head(motu_list)
+
+high_motu_list <- df_motus_combined %>%
+                        filter(rel_ab >= 0.1) %>%
+                          pull(motu_condensed) %>% unique
+
+high_motu_list
+```
+
+```{r}
+tr<-0.01
+
+df_motus_filt <- df_motus_combined %>% 
+  mutate("tax_plt"=ifelse(rel_ab>tr, motu_condensed,
+                                   paste("other<", tr,"%", sep=""))) %>%
+  group_by(Sample, motu) %>%
+   dplyr::mutate(Sample=unlist(strsplit(Sample, split = ".S00"))[1],
+         sam_org=ifelse(grepl("LLE", Sample), "Kristen", "Malick")) 
+   
+
+levs<- get_gen_col(df_motus_filt$motu_condensed , df_motus_filt$rel_ab, threshold = tr, add_pal="Greys", unclass = "unassigned")[[1]]
+col_list<- get_gen_col(df_motus_filt$motu_condensed , df_motus_filt$rel_ab, threshold = tr, add_pal="Greys", unclass = "unassigned")[[2]]
+levs
+col_list
+
+
+ggplot(df_motus_filt, aes(x=reorder(Sample, as.numeric(unlist(strsplit(Sample, "B")))), y=rel_ab,
+           fill=factor(tax_plt, levels = levs))) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = col_list) +
+  guides(fill = guide_legend(title = "Genus")) +
+  labs(x="", y="Relative Abundance")+
+  theme_classic()+ guides(size = "legend", colour = "none") +
+    theme(axis.text.x = element_text(size =10, angle = 90, hjust = .5, vjust=.5, face = "plain"),
+        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"))
+```
+```{r}
+tr<-0.01
+
+df_motus_filt <- df_motus_combined %>% mutate("tax_plt"=ifelse(rel_ab>tr, motu_condensed,
+                                   paste("other<", tr,"%", sep=""))) %>% mutate(sam_org=ifelse(grepl("LLE", Sample), "Kristen", "Malick")) %>% filter(!sam_org=="Kristen")
+
+levs<- get_gen_col(df_motus_filt$motu_condensed , df_motus_filt$rel_ab, threshold = tr, add_pal="Greys", unclass = "unassigned")[[1]]
+col_list<- get_gen_col(df_motus_filt$motu_condensed , df_motus_filt$rel_ab, threshold = tr, add_pal="Greys", unclass = "unassigned")[[2]]
+levs
+col_list
+
+
+ggplot(df_motus_filt, aes(x=reorder(Sample, as.numeric(unlist(strsplit(Sample, "B")))), y=rel_ab,
+           fill=factor(tax_plt, levels = levs))) +
+  geom_bar(position="stack", stat="identity") +
+  scale_fill_manual(values = col_list) +
+  guides(fill = guide_legend(title = "Genus")) +
+  labs(x="", y="Relative Abundance")+
+  theme_classic()+ guides(size = "legend", colour = "none") +
+    theme(axis.text.x = element_text(size =10, angle = 90, hjust = .5, vjust=.5, face = "plain"),
+        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"))
+```
+
+
+
+
+```{r}
+df_motus_count<- df_motus_combined %>% group_by(Sample) %>% dplyr::summarise(bacterial_reads=sum(read_count, na.rm = T)) %>% mutate(sam_org=ifelse(grepl("LLE", Sample), "Kristen", "Malick"))
+```
+
+```{r}
+ggplot(df_motus_count,aes(x = reorder(Sample, as.numeric(unlist(strsplit(Sample, "B")))),
+                          y=bacterial_reads,
+                          fill=factor(sam_org, levels=c("Malick", "Kristen"))))+
+  geom_bar(stat="identity")+
+  scale_fill_manual(values = c("azure4", "azure3")) +
+   guides(fill = guide_legend(title = "Sample Origin")) +
+  theme_classic()+
+  labs(y="reads mapping to bacterial MGs")+
+  theme(axis.title.x=element_blank(),
+        axis.text.x=element_blank(),
+        axis.ticks.x=element_blank(),
+        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"))
+```
+```{r}
+df_motus_mal<- df_motus_combined %>% group_by(Sample) %>% dplyr::summarise(bacterial_reads=sum(read_count, na.rm = T)) %>% mutate(sam_org=ifelse(grepl("LLE", Sample), "Kristen", "Malick")) %>% filter(sam_org=="Malick")
+
+df_count_comb<- left_join(df_motus_mal, reads[, c("sample", "reads_postFilt")], by= c("Sample"="sample"))
+
+ggplot(df_count_comb, aes(x=reads_postFilt, y=bacterial_reads))+
+  geom_point()+
+  labs(x="Total Reads", y="Reads Mapping to Bacterial MG")+
+  theme_classic()
+```
+
+
+## Metapop
+
+### VCs coummunity composition
+```{r}
+vc_ab<- "../../../results/metapop/viruses/MetaPop/11.Macrodiversity/normalized_abundances_table.tsv"
+vc_alpha<- "../../../results/metapop/viruses/MetaPop/11.Macrodiversity/Alpha_diveristy_stats.tsv"
+
+ab_df<- read.csv(vc_ab, header=T, sep="\t")
+
+ab_df2<- melt(ab_df, variable.name = "sample", value.name = "norm_ab") %>% 
+  group_by(sample) %>% 
+  dplyr::mutate(sample=unlist(strsplit(as.character(sample), split="_"))[1])%>%
+  dplyr::mutate(sample=unlist(strsplit(as.character(sample), split="X"))[2],
+                rel_ab=norm_ab/sum(norm_ab))%>%
+  group_by(V1)%>%
+  dplyr::mutate(VC=paste(unlist(strsplit(as.character(V1), split="_"))[1],
+                           unlist(strsplit(as.character(V1), split="_"))[2]
+                         , sep = "_"))
+
+head(ab_df2)
+```
+
+
+```{r}
+ab_df3<- ab_df2 %>% group_by(sample,VC) %>%
+  dplyr::summarise(rel_ab=sum(rel_ab))
+```
+
+```{r}
+setwd("../../")
+
+vc_mtdata_p<- "../data/metadata/GB_ViralClusters_metadata.csv"
+vc_mtdata<- read.csv(vc_mtdata_p, header=T, sep="\t")
+
+vc_name<- ab_df3 %>% select(VC) %>% unlist(use.names = FALSE)
+
+get_names<- function(data, names=vc_name){
+  t_list<-grepl(data, names)
+  i_list<- which(t_list)
+  
+  name<- ifelse(any(t_list), unique(vc_name[i_list]), data)
+  
+  return(name)
+}
+
+vc_mtdata<-vc_mtdata%>% mutate(name=lapply(VC_ID, get_names))
+
+head(vc_mtdata)
+```
+
+```{r prepare for VCs rel freq heatmap}
+ab_df4<- ab_df3 %>% mutate(sam_name=substr(sample,1,nchar(sample)-1))
+
+dept_mat<- ab_df4 %>% filter(rel_ab!=0) %>% select(c(sample, VC, rel_ab))  %>%  spread(key=sample, value=rel_ab, fill = 0) %>% column_to_rownames(var="VC")
+
+vc_mtdata2<-vc_mtdata %>%
+  mutate(Predicted_Host=replace(Predicted_Host,Predicted_Host=="F4", "Firm4"))  %>%
+  mutate(Predicted_Host=replace(Predicted_Host,Predicted_Host=="F5", "Firm5")) %>%
+  mutate(Predicted_Host=replace(Predicted_Host,Predicted_Host=="unknown", "unclassified"))
+
+
+host_tgt<- vc_mtdata2$Predicted_Host
+names(host_tgt)<- unlist(vc_mtdata2$name)
+
+target <- host_tgt[rownames(dept_mat)]
+target<- unname(target)
+
+cols<- brewer.pal(11, "Spectral")
+
+col_list<- c("Firm4"=cols[10],
+             "Firm5"="blue",
+             "kunkeei"="lightblue",
+             "Lactococcus"= cols[4],
+             "Gamma"=cols[9],
+             "Bifidobacterium"=cols[8],
+             "Commensalibacter"="tomato3",
+             "unclassified"="grey",
+             "Snodgrassella"=cols[6],
+             "Gilliamella" =cols[7],
+             "Bartonella"=cols[3],
+             "Gilliamella+Frischella"=cols[11],
+             "Pseudomonas"=cols[2],
+             "Apis"=cols[1],
+             "Characterized Phages"="turquoise",
+             "Frischella"=cols[5])
+
+pal_trgt=col_list[target]
+
+host_tgt
+show_col(cols)
+```
+
+```{r VCs relative frequency heatmap}
+col_fun = c("black",magma(10000, begin = 0.2, end = 0.9, direction = 1))
+
+#vc_frq<- lost_df %>% filter(grepl("P", sample), sample!="LDP", hit_type=="GB_VCs") %>% select(mapping_freq)
+
+row_ha<- rowAnnotation("Target Host" = target, col=list("Target Host"= col_list))
+
+
+#pdf("vc_ht.pdf",width=5,height=6)
+
+ht_viral <- Heatmap(dept_mat, col=col_fun, 
+                    row_names_gp = gpar(fontsize = 7),
+                    show_row_names = T,
+                    column_names_gp =
+                      gpar(fontsize = 10,  fontface = "bold"), 
+                    right_annotation = row_ha,
+                    show_row_dend=F, 
+                    show_column_dend=F, 
+                    name = "relative abundance\n",
+                    heatmap_legend_param = 
+                      list(title_gp = gpar(fontsize = 10,fontface = "bold"),
+                           labels_gp = gpar(fontsize = 10),
+                           legend_height= unit(0.6, "cm"),
+                           grid_width= unit(1, "cm")))
+
+ht_viral
+#dev.off()
+```
+### Alpha diversity
+```{r}
+vc_alpha<- "../../../results/metapop/viruses/MetaPop/11.Macrodiversity/Alpha_diveristy_stats.tsv"
+
+alpha_df<- read.csv(vc_alpha, header=T, sep="\t")
+alpha_df<- melt(alpha_df, variable.name = "alpha_measurment")
+head(alpha_df)
+```
+```{r}
+ggplot(alpha_df, aes(x=alpha_measurment, y=value))+
+  geom_boxplot()+
+  geom_jitter(alpha=0.5)+
+  theme_classic()
+```
+
+
+
+## Read Mapping
+```{r}
+setwd("../../")
+
+refstats_path<- "../results/data_validation/reads_mapping/global_refstats.txt"
+readc_path<-"../results/data_validation/QC/read_count.txt"
+report<- "../results/data_validation/kraken2_output/Reports/all_samples_report.txt"
+metadata_p<- "../data/metadata/Genomes_database_metadata_MN.txt"
+
+refstats<- read.table(refstats_path, header=T)
+
+readc<- read.table(readc_path, header=T)
+
+krk_df<- read.csv(report, header=T, sep="\t")
+
+metadata<- read.csv(metadata_p, header=T, sep="\t")
+
+get_SDP<- function(filename){
+  lt<- unlist(strsplit(filename, split = "_"))[1]
+  sdp<- metadata$SDP[metadata$Locus_tag==lt][1]
+  
+  ifelse(is.na(sdp), return(filename), return(sdp))
+}
+
+get_phy<- function(filename){
+  lt<- unlist(strsplit(filename, split = "_"))[1]
+  phy<- metadata$Phylotype[metadata$Locus_tag==lt][1]
+  
+  ifelse(is.na(phy), return(filename), return(phy))
+}
+
+
+av_df<- merge(refstats, readc, by="sample") %>%
+  mutate("rel_freq"=assignedReads/(reads_postQC*2), "phylotype"=lapply(name,get_phy), name=lapply(name,get_SDP)) 
+```
+
+
+```{r}
+sum_krk<- krk_df %>% filter( c(rank_code=="U"|rank_code=="D"|taxon=="Apis")) %>% 
+  group_by(sample, taxon) %>% 
+  mutate(perc=percentage_of_reads)%>% 
+  filter(taxon=="GB_VCs"|taxon=="Bacteria"|taxon=="Apis") %>% 
+  dplyr::rename("hit_type"=taxon)
+
+sum_krk$hit_type[sum_krk$hit_type=="Apis"]<-"Honeybee"
+
+Vc_sum<- av_df %>% group_by(sample, hit_type) %>% dplyr::summarise(mapping_freq=sum(rel_freq))
+
+lost_df<- dplyr::full_join(Vc_sum, sum_krk, by=c("hit_type","sample")) %>%
+  mutate("kraken_freq"=perc/100) %>% filter(sample!="LDP") %>%
+  select(-c("perc"))
+
+m_lost<- reshape2::melt(lost_df, varnames=c('mapping_freq', 'kraken_freq'), id.vars =c("sample", "hit_type"),  value.name = "rel_frq") %>% filter(variable=='mapping_freq'|variable== 'kraken_freq')
+
+m_lost$rel_frq<- as.numeric(m_lost$rel_frq)
+m_lost$rel_frq
+
+fill_o<- factor(m_lost$variable, levels=c('kraken_freq', 'mapping_freq'))
+
+ggplot(m_lost, aes(x=sample, y=rel_frq, fill=fill_o))+
+  geom_bar(stat="identity", position=position_dodge())+
+  labs(x="", y="relative aboundance")+
+  facet_wrap(hit_type~., nrow = 1)+
+  theme_classic()
+
+m_lost %>% filter(variable=="mapping_freq") %>% ggplot(aes(x=sample, y=rel_frq))+
+  geom_bar(stat="identity", position=position_dodge())+
+  labs(x="", y="relative aboundance")+
+  facet_wrap(.~hit_type, nrow=3)+
+  theme_classic()+
+  theme(axis.text.x = element_text(size = 20, angle = 90, hjust = .5,
+                                   vjust = .5, face
+                                   = "plain"),
+         axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain")) 
+```
+
+### Domain composition
+```{r plot kingdom composition}
+unc<- m_lost%>% filter(variable=="mapping_freq") %>% dplyr::group_by(sample)%>% dplyr::summarise("hit_type"="unclassified", variable="mapping_freq", "rel_frq"=1-sum(rel_frq))
+
+m_lost2<- m_lost%>% filter(variable=="mapping_freq") %>%  add_row(unc)
+
+
+hits<- unique(m_lost2$hit_type)
+n_col<- length(hits)
+my_pal<-c(palette("Pastel1")[1:(n_col-1)],"grey")
+names(my_pal)<- hits
+show_col(my_pal)
+
+
+
+map_comm_plt<- ggplot(m_lost2,aes(x=sample, y=rel_frq, fill=hit_type))+
+  geom_bar(stat = "identity", position=position_stack())+
+  scale_fill_manual(values=my_pal)+
+  labs(x="", y="relative abundance")+
+  guides(fill=guide_legend(title="Taxon"))+
+  theme_classic()+
+  theme(axis.text.x = element_text(size = 20, angle = 90, hjust = .5,
+                                   vjust = .5, face
+                                   = "plain"),
+        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"))  
+
+  
+krk_comm_plt
+map_comm_plt
+```
+
+### Viral Clusters composition
+
+```{r}
+setwd("../../")
+
+vc_mtdata_p<- "../data/metadata/GB_ViralClusters_metadata.csv"
+vc_mtdata<- read.csv(vc_mtdata_p, header=T, sep="\t")
+
+vc_name<- av_df %>% filter(grepl("VC", name)) %>% select(name) %>% unlist(use.names = FALSE)
+
+get_names<- function(data, names=vc_name){
+  t_list<-grepl(data, names)
+  i_list<- which(t_list)
+  
+  name<- ifelse(any(t_list), unique(vc_name[i_list]), data)
+  
+  return(name)
+}
+
+vc_mtdata<-vc_mtdata%>% mutate(name=lapply(VC_ID, get_names))
+
+head(vc_mtdata)
+```
+
+```{r prepare for VCs rel freq heatmap}
+av_df2<- av_df %>% mutate(sam_name=substr(sample,1,nchar(sample)-1))
+
+dept_mat<- av_df2 %>% filter(rel_freq!=0, sam_type=="virome", hit_type=="GB_VCs") %>% select(c(sample, name, rel_freq))  %>%  spread(key=sample, value=rel_freq, fill = 0) %>% column_to_rownames(var="name")
+
+vc_mtdata2<-vc_mtdata %>% 
+  mutate(Predicted_Host=replace(Predicted_Host,Predicted_Host=="F4", "Firm4"))  %>%
+  mutate(Predicted_Host=replace(Predicted_Host,Predicted_Host=="F5", "Firm5")) %>%
+  mutate(Predicted_Host=replace(Predicted_Host,Predicted_Host=="unknown", "unclassified"))
+  
+
+host_tgt<- vc_mtdata2$Predicted_Host
+names(host_tgt)<- unlist(vc_mtdata2$name)
+
+target <- host_tgt[rownames(dept_mat)]
+target<- unname(target)
+
+cols<- brewer.pal(11, "Spectral")
+
+col_list<- c("Firm4"=cols[10],
+             "Firm5"="blue",
+             "kunkeei"="lightblue",
+             "Lactococcus"= cols[4],
+             "Gamma"=cols[9],
+             "Bifidobacterium"=cols[8],
+             "Commensalibacter"="tomato3",
+             "unclassified"="grey",
+             "Snodgrassella"=cols[6],
+             "Gilliamella" =cols[7],
+             "Bartonella"=cols[3],
+             "Gilliamella+Frischella"=cols[11],
+             "Pseudomonas"=cols[2],
+             "Apis"=cols[1],
+             "Characterized Phages"="turquoise",
+             "Frischella"=cols[5])
+
+pal_trgt=col_list[target]
+
+host_tgt
+show_col(cols)
+```
+
+```{r VCs relative frequency heatmap}
+col_fun = c("black",magma(10000, begin = 0.2, end = 0.9, direction = 1))
+
+vc_frq<- lost_df %>% filter(grepl("P", sample), sample!="LDP", hit_type=="GB_VCs") %>% select(mapping_freq)
+
+row_ha<- rowAnnotation("Target Host" = target, col=list("Target Host"= col_list))
+column_ha = HeatmapAnnotation("total relative\nabundance" = anno_barplot(vc_frq$mapping_freq,
+                                                                         axis_param=list(gp=gpar(fontsize=10, fontface = "bold"),
+                                                                                         at = seq(0,0.9,0.3)),
+                                                                         height=unit(2, "cm")),
+                                                                         annotation_name_gp = 
+                                gpar(fontsize=10,fontface = "bold"))
+
+
+#pdf("vc_ht.pdf",width=5,height=6)
+
+ht_viral <- Heatmap(dept_mat, col=col_fun, 
+                    row_names_gp = gpar(fontsize = 7),
+                    show_row_names = T,
+                    column_names_gp =
+                      gpar(fontsize = 10,  fontface = "bold"), column_names_rot =0,
+                    right_annotation = row_ha,
+                    show_row_dend=F, 
+                    show_column_dend=F, 
+                    name = "relative abundance\n",
+                    heatmap_legend_param = 
+                      list(title_gp = gpar(fontsize = 10,fontface = "bold"),
+                           labels_gp = gpar(fontsize = 10),
+                           legend_height= unit(0.6, "cm"),
+                           grid_width= unit(1, "cm")))
+
+ht_viral
+#dev.off()
+```
+
+```{r rel freq cumulative plot}
+
+viral_frq<- av_df2 %>% filter(rel_freq!=0, sam_type=="virome", hit_type=="GB_VCs") %>%
+  select(c(sample, name, rel_freq)) %>% 
+  arrange(sample, desc(rel_freq))  %>% 
+  dplyr::group_by(sample) %>%
+  dplyr::summarise("cum_sum"=cumsum(rel_freq), "n"=1:length(sample), "max_sum"= max(cum_sum)) %>%
+  group_by(sample) %>%
+  group_modify(~ add_row(.x,.before=0))
+
+viral_frq$n[is.na(viral_frq$n)]<- 0
+viral_frq$cum_sum[is.na(viral_frq$cum_sum)]<- 0
+
+
+cum_plt<- ggplot(viral_frq, aes(x=n, y=cum_sum))+
+  geom_line()+
+  geom_point(size=0.5)+
+  ylim(0,1)+
+  facet_grid(~sample)+
+  geom_hline(data=viral_frq, aes(yintercept = max_sum), linetype ="dashed", col="red")+
+  labs(x="Viral Clusters", y="Relative Abundance")+
+  theme_classic()+
+  theme(
+    axis.title.x = element_text(size=14, face="bold", colour = "black"),    
+    axis.title.y = element_text(size=14, face="bold", colour = "black"),    
+    axis.text.x = element_text(size=10, face="bold", colour = "black"), 
+    axis.text.y = element_text(size=10, face="bold", colour = "black"),
+    strip.text.y= element_text(size=12, face="bold", colour = "black"),
+    legend.text=element_text(size=10, face="bold", colour = "black"))
+
+cum_plt
+```
+
+
+## Unmapped reads
+```{r}
+setwd("../../")
+
+asmbl_p<-("../results/data_validation/reads_mapping/unmapped_asssembly/assemblies_summary.txt")
+asmbl<- read.csv(asmbl_p, header=T, sep="\t")
+```
+
+```{r}
+asmbl %>% group_by(sample) %>% summarise("contigs > 1000bp[%] "=(sum(size.bp.>1000)/length(contig))*100) %>% kable()
+asmbl %>% group_by(sample) %>% summarise("nr. contigs"=length(contig))%>% kable()
+```
+
+### Clustering
+```{r}
+setwd("../../")
+
+clstr_80_p<- "../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_parsed_80.txt"
+clstr_100_p<- "../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_parsed_100.txt"
+
+
+clstr_80<- read.table(clstr_80_p, header = T, sep="\t") %>% mutate("cluster_id"=factor(80))
+clstr_100<- read.table(clstr_100_p, header = T, sep="\t")%>% mutate("cluster_id"=factor(100))
+
+clstr<-rbind(clstr_80, clstr_100)
+
+head(clstr)
+```
+```{r}
+clstr_sum<-clstr %>% group_by(cluster, cluster_id)%>%
+  summarise(cluster_size=length(cluster_size),
+            avg_id=mean(identity),
+            avg_cov=mean(kmer_cov), 
+            max_length=max(length),
+            min_length=min(length))
+
+ggplot(clstr_sum, aes(x=cluster_size))+
+  geom_bar()+
+      theme(legend.position = "none",
+        axis.text.x = element_text(size=20), 
+        axis.text.y = element_text(size=20))+
+  theme_classic()+
+  facet_wrap(~cluster_id)
+
+clst_80<- clstr_sum %>% filter(cluster_id==80)
+
+clstsize_plt<- ggplot(clst_80, aes(x=cluster_size)) + 
+  geom_bar(width=0.8) +
+  labs(x="cluster size")+
+  scale_x_continuous(breaks=seq(1,max(clstr_80$cluster_size), by=1))+
+  #scale_y_continuous(breaks=seq(0,150, by=20))+
+  theme_classic()+
+  theme(
+    plot.title = element_text(size=20, face= "bold", colour= "black" ),
+    axis.title.x = element_text(size=15, face="bold", colour = "black"),    
+    axis.title.y = element_text(size=15, face="bold", colour = "black"),    
+    axis.text.x = element_text(size=15, face="bold", colour = "black"), 
+    axis.text.y = element_text(size=15, face="bold", colour = "black"),
+    strip.text.x= element_text(size=12, face="bold", colour = "black"),
+    legend.text=element_text(size=15, face="bold", colour = "black"))
+  
+clstsize_plt
+```
+
+```{r}
+sams<- unique(clstr$sample)
+
+get_clstrs<- function(sam, id, data=clstr){
+  a<- clstr %>% filter(cluster_id==id, sample==sam)
+  cl_list<-a$cluster
+  return(cl_list)
+}
+
+cluster_sets<- lapply(sams, get_clstrs, id=80)
+names(cluster_sets)<- sams
+
+upseti<- upset(fromList(cluster_sets),
+               nsets=10,
+               order.by = "freq", 
+      mainbar.y.label = "Clusters Intersections",
+      sets.x.label = "Nr. of Clusters")
+
+upseti
+```
