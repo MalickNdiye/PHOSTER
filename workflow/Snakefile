@@ -575,12 +575,11 @@ rule backmapping_depths:
         runtime="10:00:00",
         mem_mb = "10000"
     threads: 15
-    conda: "envs/mags_env.yaml"
+    conda: "envs/sam_env.yaml"
     log:
         "logs/MAGs/backmapping/{sam_name}B_{sam_name2}_depth.log"
     benchmark: "logs/MAGs/backmapping/{sam_name}B_{sam_name2}_depth.benchmark"
     shell:
-        "conda install -c bioconda samtools=1.9 --force-reinstall; "
         "samtools view -bh {input.sam} | samtools sort - > {output.bam}; "
         "export OMP_NUM_THREADS={threads}; "
         "jgi_summarize_bam_contig_depths --outputDepth {output.depth} {output.bam}"
