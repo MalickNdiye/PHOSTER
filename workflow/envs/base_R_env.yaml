@@ -1,0 +1,16 @@
+name: base_r_env
+channels:
+ - conda-forge
+ - bioconda
+dependencies:
+ - r-base=4.1
+ - r-tidyverse
+ - r-ggplot2
+ - r-rmarkdown
+ - r-rcolorbrewer
+ - r-scales
+ - r-knitr
+ - r-wesanderson
+ - r-devtools
+ - bioconductor-complexheatmap
+ - r-viridis

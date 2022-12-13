@@ -1,0 +1,5 @@
+name: cd-hit_env
+channels:
+  - bioconda
+dependencies:
+ - cd-hit=4.8.1

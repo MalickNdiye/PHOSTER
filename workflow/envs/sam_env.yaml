@@ -1,0 +1,9 @@
+name: mags_env
+channels:
+ - bioconda
+ - conda-forge
+dependencies:
+ - samtools=1.9
+ - metabat2
+ - openjdk=11.0.9.1
+ - libdeflate
