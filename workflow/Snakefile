@@ -2,7 +2,7 @@ configfile: "../config/config.yaml"
 
 rule all:
     input:
-        expand("../results/MAG_binning/bins/{sam_name2}B-metabat2.bins.done", sam_name2=config["sam_names"]),
+        expand("../results/MAG_binning/bins/{sam_name2}B-metabat2/", sam_name2=config["sam_names"]),
         "../results/assembly/HF_assembly/all_HFassemblies_summary_tab.txt"
 
 #################### Main Functions #######################################
@@ -536,32 +536,64 @@ rule aggragate_filtering_tabs:
 # The following rules perform a mapping of all samples against all samples
 # to obtain a depth profile for the assembly of each sample
 
+rule build_backmapping_index:
+    input:
+        ref="../results/assembly/HF_assembly/{sam_name2}B_metaspades/{sam_name2}B_contigs_parsed.fasta"
+    output:
+        dir=directory("../results/assembly/HF_assembly/{sam_name2}B_metaspades/{sam_name2}B_index")
+    conda:
+        "envs/map_env.yaml"
+    threads: 15
+    params:
+        basename="{sam_name2}B_contigs_parsed",
+    log:
+        "logs/MAGs/backmapping/indexing/{sam_name2}_build_bowtie_index.log"
+    resources:
+        account= "pengel_beemicrophage",
+        mem_mb= 20000,
+        runtime= "01:00:00"
+    shell:
+        "mkdir -p {output.dir}; "
+        "bowtie2-build {input.ref} {output.dir}/{params.basename} --threads {threads}"
+
 rule backmapping:
     input:
-        assembly = expand("../results/assembly/HF_assembly/{sam_name2}B_metaspades/{sam_name2}B_contigs_parsed.fasta", sam_name2=config["sam_names"]), # we bin only bacteria
+        assembly = "../results/assembly/HF_assembly/{sam_name2}B_metaspades/{sam_name2}B_index", # we bin only bacteria
         R1 = "../data/host_filtered_reads/{sam_name}B_R1_HF.fastq.gz",
         R2 = "../data/host_filtered_reads/{sam_name}B_R2_HF.fastq.gz"
     output:
-        sam=temp(expand("../scratch_link/MAG_binning/backmapping/{{sam_name}}B/{{sam_name}}B_mapped_to_{sam_name2}B_contigs_parsed.sam", sam_name2=config["sam_names"])),
-        refstats="../results/MAG_binning/backmapping/{sam_name}B/{sam_name}B_refstats.txt"
-    params:
-        dir="../scratch_link/MAG_binning/backmapping/{sam_name}B/",
-        all_assemblies=",".join(expand("../results/assembly/HF_assembly/{sam_name}B_metaspades/{sam_name}B_contigs_parsed.fasta", sam_name=config["sam_names"])),
-        xmx="200g"
+        sam="../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.sam"
     resources:
         account="pengel_beemicrophage",
         runtime="72:00:00",
         mem_mb = "250000"
+    params:
+        basename="{sam_name2}B_contigs_parsed",
+        maxins=900,
+        minins=50
     threads: 15
-    conda: "envs/mags_env.yaml"
+    conda: "envs/map_env.yaml"
     log:
-        "logs/MAGs/backmapping/{sam_name}B_backmapping.log"
-    benchmark: "logs/MAGs/backmapping/{sam_name}B_backmapping.benchmark"
+        "logs/MAGs/backmapping/{sam_name}B_backmapping_to{sam_name2}asmbl.log"
+    benchmark: "logs/MAGs/backmapping/{sam_name}B_backmapping_to{sam_name2}asmbl.benchmark"
     shell:
-        "bbsplit.sh in1={input.R1} in2={input.R2} ref={params.all_assemblies} \
-        basename={params.dir}/{wildcards.sam_name}B_mapped_to_%.sam \
-        refstats={output.refstats} rebuild=t nodisk=t ambiguous2=all \
-        nzo=f -Xmx{params.xmx} threads={threads}"
+        "bowtie2 -x {input.assembly}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --maxins {params.maxins} --minins {params.minins} --threads {threads}"
+
+        # """
+        # for i in {params.basename};
+        # do
+        #     asmbl_sam=$(basename $i)
+        #     sam="{output.dir}/{wildcards.sam_name}B_mapped_to_${{asmbl_sam}}.sam"
+        #     echo ${sam}
+        #     bowtie2 -x ${{i}} -1 {input.R1} -2 {input.R2} -S ${{sam}} --maxins {params.maxins} --minins {params.minins} --threads {threads}
+        # done
+        # """
+
+
+        # "bbsplit.sh in1={input.R1} in2={input.R2} ref={params.all_assemblies} \
+        # basename={params.dir}/{wildcards.sam_name}B_mapped_to_%.sam \
+        # refstats={output.refstats} rebuild=t nodisk=t ambiguous2=all \
+        # nzo=f -Xmx{params.xmx} threads={threads}"
 
 
 rule backmapping_depths:
@@ -577,8 +609,8 @@ rule backmapping_depths:
     threads: 15
     conda: "envs/sam_env.yaml"
     log:
-        "logs/MAGs/backmapping/{sam_name}B_{sam_name2}_depth.log"
-    benchmark: "logs/MAGs/backmapping/{sam_name}B_{sam_name2}_depth.benchmark"
+        "logs/MAGs/backmapping/depth/{sam_name}B_{sam_name2}_depth.log"
+    benchmark: "logs/MAGs/backmapping/depth/{sam_name}B_{sam_name2}_depth.benchmark"
     shell:
         "samtools view -bh {input.sam} | samtools sort - > {output.bam}; "
         "export OMP_NUM_THREADS={threads}; "
@@ -595,7 +627,7 @@ rule merge_depths:
         mem_mb = "10000"
     threads: 4
     conda: "envs/mags_env.yaml"
-    log: "logs/MAGs/backmapping/{sam_name2}B_merge_depth.log"
+    log: "logs/MAGs/backmapping/depth/{sam_name2}B_merge_depth.log"
     shell:
         "scripts/MAGs/merge_depths.pl {input.depth_files} > {output.depth_file_merged}"
 
@@ -608,12 +640,13 @@ rule binning:
         assembly = "../results/assembly/HF_assembly/{sam_name2}B_metaspades/{sam_name2}B_contigs_parsed.fasta",
         depth_file_merged = "../results/MAG_binning/backmapping/merged_depths/{sam_name2}B_global_depth.txt"
     output:
-        marker = "../results/MAG_binning/bins/{sam_name2}B-metabat2.bins.done",
+        dir=directory("../results/MAG_binning/bins/{sam_name2}B-metabat2/")
     params:
         min_contig_size=2500, # Metabat2 default
         min_bin_size=200000, # Metabat2 default
         max_edges=200, # Metabat2 default
         min_cv=1, # Metabat2 default
+        marker = "../results/MAG_binning/bins/{sam_name2}B-metabat2.bins.done"
     resources:
         account="pengel_beemicrophage",
         mem_mb= 2000,
@@ -623,8 +656,9 @@ rule binning:
     log: "logs/MAGs/binning/{sam_name2}B_binning.log"
     benchmark: "logs/MAGs/binning/{sam_name2}B_binning.benchmark"
     shell:
-        "bins_dir=${{{output.marker}/\.bins*/}}; "
-        "prefix=${{{output.marker}/\.bins*/}}/{wildcards.sam_name2}B-metabat2/MAG; "
+        "marker={params.marker}; "
+        "prefix=${{marker/\.bins*/}}/MAG; "
+        "mkdir -p {output.dir}; "
         "metabat2 -i {input.assembly} -a {input.depth_file_merged} -o ${{prefix}} --minContig {params.min_contig_size} --maxEdges {params.max_edges} -x {params.min_cv} --numThreads {threads}"
 
 
