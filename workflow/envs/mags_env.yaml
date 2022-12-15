@@ -9,6 +9,7 @@ dependencies:
  - openjdk=11.0.9.1
  - perl=5.32.1=0_h7f98852_perl5
  - samtools
+ - libdeflate
  - picard=2.26.2=hdfd78af_0
  - bwa=0.7.17=h5bf99c6_8
  - metabat2

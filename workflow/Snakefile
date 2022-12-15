@@ -457,12 +457,13 @@ rule parse_motus:
 #   (1): The host-filtered reads are assembled using metaspades
 #   (2): backmapping where the read of each sample are mapped against the assembly
 #        of every other sample
-#   (3): scaffold ae binned into MAGS in functon of their coverage across samples
+#   (3): scaffold are binned into MAGS in functon of their coverage across samples
 #        using metabat2
+#   (4): Scaffolds are QCed
 ################################################################################
 ################################################################################
 
-# (1)
+##################################### (1) ######################################
 # the following rules use spades to assemble the metagenomes of every sample.
 # then assembly are filtered in function of length and coverage
 
@@ -524,7 +525,7 @@ rule aggragate_filtering_tabs:
         account="pengel_beemicrophage",
         mem_mb= 2000,
         runtime= "00:15:00"
-    log:# (2)
+    log:
         "logs/assembly/HF/aggragate_filterig.log"
     benchmark:
         "logs/assembly/HF/aggragate_filterig.benchmark"
@@ -532,7 +533,7 @@ rule aggragate_filtering_tabs:
         "echo -e 'sample\tcontig\tlength\tcov\taccepted' > {output}; "
         "cat {input} >> {output}"
 
-# (2)
+##################################### (2) ######################################
 # The following rules perform a mapping of all samples against all samples
 # to obtain a depth profile for the assembly of each sample
 
@@ -569,7 +570,7 @@ rule backmapping:
         mem_mb = "250000"
     params:
         basename="{sam_name2}B_contigs_parsed",
-        maxins=900,
+        maxins=400,
         minins=50
     threads: 15
     conda: "envs/map_env.yaml"
@@ -578,22 +579,6 @@ rule backmapping:
     benchmark: "logs/MAGs/backmapping/{sam_name}B_backmapping_to{sam_name2}asmbl.benchmark"
     shell:
         "bowtie2 -x {input.assembly}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --maxins {params.maxins} --minins {params.minins} --threads {threads}"
-
-        # """
-        # for i in {params.basename};
-        # do
-        #     asmbl_sam=$(basename $i)
-        #     sam="{output.dir}/{wildcards.sam_name}B_mapped_to_${{asmbl_sam}}.sam"
-        #     echo ${sam}
-        #     bowtie2 -x ${{i}} -1 {input.R1} -2 {input.R2} -S ${{sam}} --maxins {params.maxins} --minins {params.minins} --threads {threads}
-        # done
-        # """
-
-
-        # "bbsplit.sh in1={input.R1} in2={input.R2} ref={params.all_assemblies} \
-        # basename={params.dir}/{wildcards.sam_name}B_mapped_to_%.sam \
-        # refstats={output.refstats} rebuild=t nodisk=t ambiguous2=all \
-        # nzo=f -Xmx{params.xmx} threads={threads}"
 
 
 rule backmapping_depths:
@@ -610,7 +595,8 @@ rule backmapping_depths:
     conda: "envs/sam_env.yaml"
     log:
         "logs/MAGs/backmapping/depth/{sam_name}B_{sam_name2}_depth.log"
-    benchmark: "logs/MAGs/backmapping/depth/{sam_name}B_{sam_name2}_depth.benchmark"
+    benchmark:
+        "logs/MAGs/backmapping/depth/{sam_name}B_{sam_name2}_depth.benchmark"
     shell:
         "samtools view -bh {input.sam} | samtools sort - > {output.bam}; "
         "export OMP_NUM_THREADS={threads}; "
@@ -627,11 +613,12 @@ rule merge_depths:
         mem_mb = "10000"
     threads: 4
     conda: "envs/mags_env.yaml"
-    log: "logs/MAGs/backmapping/depth/{sam_name2}B_merge_depth.log"
+    log:
+        "logs/MAGs/backmapping/depth/{sam_name2}B_merge_depth.log"
     shell:
         "scripts/MAGs/merge_depths.pl {input.depth_files} > {output.depth_file_merged}"
 
-# (3)
+##################################### (3) ######################################
 # The following rules are used to bin the contigs of every assembly into MAGs
 # using the mapping information of section 2
 
@@ -657,10 +644,59 @@ rule binning:
     benchmark: "logs/MAGs/binning/{sam_name2}B_binning.benchmark"
     shell:
         "marker={params.marker}; "
-        "prefix=${{marker/\.bins*/}}/MAG; "
+        "prefix=${{marker/\.bins*/}}/{wildcards.sam_name2}B_MAG; "
         "mkdir -p {output.dir}; "
         "metabat2 -i {input.assembly} -a {input.depth_file_merged} -o ${{prefix}} --minContig {params.min_contig_size} --maxEdges {params.max_edges} -x {params.min_cv} --numThreads {threads}"
 
+
+##################################### (4) ######################################
+
+rule checkm_QC:
+    input:
+        dir="../results/MAG_binning/bins/{sam_name2}B-metabat2/",
+    output:
+        dir=directory("../results/MAG_binning/checkm_QC/{sam_name2}B_checkm_QC/"),
+        file="../results/MAG_binning/checkm_QC/{sam_name2}B_checkm_QC/{sam_name2}B_checkm_QC_stats.tsv"
+    log:
+        "logs/MAGs/checkm/{sam_name2}B_checkm_QC.log"
+    benchmark:
+        "logs/MAGs/checkm/{sam_name2}B_checkm_QC.benchmark"
+    threads: 16
+    params:
+        db="resources/checkm_db"
+    conda:
+        "envs/checkm_env.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "01:00:00"
+    shell:
+        "export CHECKM_DATA_PATH={params.db}; " #TODO there is a problem in setting the database with check data SetRoot. I had to enter the conda environment and set it myself, apparently this doesn't happen in v1.0.15, I should try with that one
+        "checkm lineage_wf {input.dir} {output.dir} -x fa -t {threads}; "
+        "checkm qa {output.dir}/lineage.ms {output.dir} -o 2 -f {output.file} --tab_table"
+
+rule checkm_plots:
+    input:
+        dir_asmbl="../results/MAG_binning/bins/{sam_name2}B-metabat2/",
+        dir_checkm="../results/MAG_binning/checkm_QC/{sam_name2}B_checkm_QC/"
+    output:
+        dir=directory("../results/MAG_binning/checkm_QC/{sam_name2}B_checkm_QC/checkm_plots/")
+    log:
+        "logs/annot_QC/checkm/plots/{sam_name2}B_plot_checkm.log"
+    benchmark:
+        "logs/MAGs/checkm/plots/{sam_name2}B_checkm_QC.benchmark"
+    threads: 2
+    conda:
+        "envs/checkm_env.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 5000,
+        runtime= "01:00:00"
+    shell:
+        "checkm marker_plot {input.dir_checkm} {input.dir_asmbl} {output.dir} -x fa --image_type svg; "
+        "checkm coding_plot {input.dir_checkm} {input.dir_asmbl} {output.dir} 0 -x fa --image_type svg; "
+        "checkm gc_plot {input.dir_asmbl} {output.dir} 0 -x fa --image_type svg; "
+        "checkm nx_plot  {input.dir_asmbl} {output.dir} -x fa --image_type svg"
 
 ################################################################################
 ################################## MAPPING #####################################
