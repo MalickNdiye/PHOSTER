@@ -55,16 +55,7 @@ def get_wildcard_commas(paths, sep=","):
     out=sep.join(file_l)
     return(out)
 
-def get_type(wildcards) :
-    type_w=wildcards.type
-    return(type_w)
 
-def join_list(li, car):
-    fin_l=[]
-    for i in li:
-        add=i+car
-        fin_l.append(add)
-    return(fin_l)
 
 ################################################################################
 ######################### Kraken2 DB building ##################################
@@ -137,10 +128,10 @@ rule run_Krakern2:
     input:
         R1="../scratch_link/concat_raw_reads/{sample}_R1_concat.fastq.gz",
         R2="../scratch_link/concat_raw_reads/{sample}_R2_concat.fastq.gz",
-        db="resources/databases/220131_costum_kraken2db"
+        db="resources/default_DBs/220131_costum_kraken2db"
     output:
         tab=temp("../results/data_validation/kraken2_output/{sample}_kraken2_report.kraken"),
-        rep="../results/data_validation/kraken2_output/Reports/{sample}_kraken2_report"
+        rep=temp("../results/data_validation/kraken2_output/Reports/{sample}_kraken2_report")
     conda:
         "envs/Kraken2.yaml"
     threads: 24
@@ -557,17 +548,17 @@ rule build_backmapping_index:
         "mkdir -p {output.dir}; "
         "bowtie2-build {input.ref} {output.dir}/{params.basename} --threads {threads}"
 
-rule backmapping:
+rule backmapping: # risk of running out of buffer memory, run fewer jobs at the time (with --jobs 50 works; maybe one could increase a bit)
     input:
         assembly = "../results/assembly/HF_assembly/{sam_name2}B_metaspades/{sam_name2}B_index", # we bin only bacteria
         R1 = "../data/host_filtered_reads/{sam_name}B_R1_HF.fastq.gz",
         R2 = "../data/host_filtered_reads/{sam_name}B_R2_HF.fastq.gz"
     output:
-        sam="../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.sam"
+        sam=temp("../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.sam")
     resources:
         account="pengel_beemicrophage",
         runtime="72:00:00",
-        mem_mb = "250000"
+        mem_mb = "10000"
     params:
         basename="{sam_name2}B_contigs_parsed",
         maxins=400,
@@ -586,11 +577,13 @@ rule backmapping_depths:
         sam= "../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.sam"
     output:
         bam= temp("../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.bam"),
-        depth= temp("../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.depth")
+        depth= "../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.depth"
     resources:
         account="pengel_beemicrophage",
         runtime="10:00:00",
         mem_mb = "10000"
+    params:
+        tmp="../scratch_link/"
     threads: 15
     conda: "envs/sam_env.yaml"
     log:
@@ -598,7 +591,7 @@ rule backmapping_depths:
     benchmark:
         "logs/MAGs/backmapping/depth/{sam_name}B_{sam_name2}_depth.benchmark"
     shell:
-        "samtools view -bh {input.sam} | samtools sort - > {output.bam}; "
+        "samtools view -bh {input.sam} | samtools sort -T {params.tmp} - > {output.bam}; "
         "export OMP_NUM_THREADS={threads}; "
         "jgi_summarize_bam_contig_depths --outputDepth {output.depth} {output.bam}"
 
@@ -663,7 +656,7 @@ rule checkm_QC:
         "logs/MAGs/checkm/{sam_name2}B_checkm_QC.benchmark"
     threads: 16
     params:
-        db="resources/checkm_db"
+        db="resources/default_DBs/checkm_db"
     conda:
         "envs/checkm_env.yaml"
     resources:

@@ -44,7 +44,7 @@ while(not $end) {
 	    chomp($line);
 	    my @fields = split("\t", $line);
 	    if (not defined $name) { $name = $fields[0]; $len = $fields[1]; }
-	    elsif ($len != $fields[1]) { die("Files do not match! $name $len vs '$line'\n"); }
+	    elsif ($len != $fields[1]) { die("Files do not match! $fh : $name $len vs '$line'\n"); }
 	    $avg += $fields[2];
 	    shift @fields;
 	    shift @fields;

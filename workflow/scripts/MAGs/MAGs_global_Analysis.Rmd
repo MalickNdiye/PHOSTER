@@ -7,8 +7,29 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+library(data.table)
+library(tidyverse)
 ```
 
 # Genome assembly
 
+```{r}
+asmbl_stats_p<- "../../../results/assembly/HF_assembly/all_HFassemblies_summary_tab.txt"
+asmbl_stats<- fread(asmbl_stats_p)
+```
+
+```{r}
+asmbl_stats2<- asmbl_stats %>% group_by(sample, accepted) %>%
+  dplyr::summarise("bp"= sum(length),
+                   "total_contigs"=length(contig)) %>%
+  dplyr::mutate(sam_type=ifelse(grepl("P", sample), "virome", "bacteriome"),
+                sam_name=substring(sample,1, nchar(sample)-1))
+
+ggplot(asmbl_stats2, aes(x=reorder(sam_name,as.numeric(sam_name)),
+                         y=bp,
+                         fill=factor(accepted, levels = c("yes", "no"))))+
+  geom_bar(stat = "identity", position=position_dodge())+
+  theme_classic()+
+  facet_grid(sam_type~., scales = "free_y")
+```
 
