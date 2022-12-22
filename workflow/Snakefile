@@ -664,6 +664,7 @@ rule checkm_QC:
         mem_mb = 100000,
         runtime= "01:00:00"
     shell:
+    #   "checkm data SetRoot | echo {params.db}" #TODO maybe this works
         "export CHECKM_DATA_PATH={params.db}; " #TODO there is a problem in setting the database with check data SetRoot. I had to enter the conda environment and set it myself, apparently this doesn't happen in v1.0.15, I should try with that one
         "checkm lineage_wf {input.dir} {output.dir} -x fa -t {threads}; "
         "checkm qa {output.dir}/lineage.ms {output.dir} -o 2 -f {output.file} --tab_table"
@@ -691,6 +692,45 @@ rule checkm_plots:
         "checkm gc_plot {input.dir_asmbl} {output.dir} 0 -x fa --image_type svg; "
         "checkm nx_plot  {input.dir_asmbl} {output.dir} -x fa --image_type svg"
 
+rule aggregate_checkm_QC:
+    input:
+        bins="../results/MAG_binning/bins",
+        stats=expand("../results/MAG_binning/checkm_QC/{sam_name2}B_checkm_QC/{sam_name2}B_checkm_QC_stats.tsv", sam_name2=config["sam_names"])
+    output:
+        full_stats="../results/MAG_binning/checkm_QC/summary/all_MAGs_stats.tsv",
+        filtered_stats="../results/MAG_binning/checkm_QC/summary/filtered_MAGs_stats.tsv",
+        filered_mags=directory("../results/MAG_binning/bins/filtered_mags")
+    log:
+        "logs/MAGs/checkm/aggregate_checkm.log"
+    threads: 1
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "00:30:00"
+    script:
+        "scripts/MAGs/aggregate_checkm.py"
+
+rule classify_gtdbtk:
+    input:
+        filtered_mags="../results/MAG_binning/bins/filtered_mags/"
+    output:
+        class_out=directory("../results/MAG_binning/gtdbtk_classification/")
+    log:
+        "logs/MAGs/gtdbtk/gtdbtk_classification.log"
+    benchmark:
+        "logs/MAGs/gtdbtk/gtdbtk_classification.benchmark"
+    threads: 8
+    conda:
+        "envs/gtdbk_env.yaml"
+    params:
+        db="resources/default_DBs/gtdbtk-2.1.1/db"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 150000,
+        runtime= "03:00:00"
+    shell:
+        "export GTDBTK_DATA_PATH={params.db}; "
+        "gtdbtk classify_wf --genome_dir {input.filtered_mags} --extension fa --out_dir {output.class_out} --cpus {threads}"
 ################################################################################
 ################################## MAPPING #####################################
 ################################################################################
