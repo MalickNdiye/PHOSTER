@@ -47,11 +47,10 @@ movMeanCirc <- function(depths, window = 100, focus = 1){
   return(res)
 }
 
-get_gen_col<- function(genera, rel_ab, suppl=vector(), threshold=1, add_pal="Greys", unclass= "unclassified"){
+get_gen_col<- function(genera, rel_ab=vector(), threshold=1, add_pal="Greys", unclass= "unclassified"){
   cols<- brewer.pal(11, "Spectral")
   
   minus<- paste("other<", threshold,"%", sep="")
-  
   un<- c(minus,
          unclass)
   un_col<- c("grey2",
@@ -88,15 +87,18 @@ get_gen_col<- function(genera, rel_ab, suppl=vector(), threshold=1, add_pal="Gre
     "GB_VCs"="turquoise"
   )
   
-  other<- rel_ab<threshold
-  genera[other]<-minus
-  
   unrep_gen<- genera[!(genera %in% levs)]
-  names(unrep_gen)<- unrep_gen
-  unrep_gen<- unrep_gen[!(unrep_gen==minus)]
-  unrep_gen<- unrep_gen[!(unrep_gen==unclass)]
-  un_n<- length(unique(unrep_gen))
   
+  if(length(rel_ab) >0){
+    other<- rel_ab<threshold
+    genera[other]<-minus
+    names(unrep_gen)<- unrep_gen
+    unrep_gen<- unrep_gen[!(unrep_gen==minus)]
+    unrep_gen<- unrep_gen[!(unrep_gen==unclass)]
+    un_n<- length(unique(unrep_gen))
+  } else{
+    un_n<- length(unique(unrep_gen))
+  }
   
   new_col<-  colorRampPalette(brewer.pal(9, add_pal))(un_n)
   names(new_col)=unique(unrep_gen)
@@ -113,27 +115,59 @@ get_gen_col<- function(genera, rel_ab, suppl=vector(), threshold=1, add_pal="Gre
   return(list(new_levs, col_list))
 }
 
-save_plts<- function(plt, sample, out_dir){
-  strain<-unique(plt$strain)
-  print(unique(plt$strain))
+get_gen_col_abs<- function(genera, add_pal="Greys", unclass= "unclassified"){
+  cols<- brewer.pal(11, "Spectral")
   
-  cov_hist<- ggplot(plt, aes(x=cov))+
-    geom_density()+
-    ggtitle(paste(unique(strain), unique(plt$SDP), sep = "\n")) +
-    geom_vline(data=plt, aes(xintercept=q10), col="blue")+
-    geom_vline(data=plt, aes(xintercept=q90), col="blue")+
-    geom_vline(data=plt, aes(xintercept=avg), col="green")+
-    theme_classic()
+  levs= c("Lactobacillus",
+          "Firm4",
+          "Bombilactobacillus",
+          "Firm5",
+          "Bifidobacterium",
+          "Commensalibacter",
+          "Bombella",
+          "Acetobacteraceae",
+          "Snodgrassella",
+          "Gilliamella",
+          "Bartonella",
+          "Frischella",
+          "Apis",
+          "GB_VCs")
   
-  file<- paste(out_dir, strain, "/", strain, "_", sample, "_covHist.pdf", sep="")
-  dir<- paste(out_dir, strain, "/", sep="")
+  col_list<- c(
+    "Lactobacillus"=cols[10],
+    "Firm4"="mediumpurple",
+    "Bombilactobacillus"="mediumpurple",
+    "Firm5"=cols[10],
+    "Bifidobacterium"=cols[8],
+    "Commensalibacter"="tomato3",
+    "Bombella"="brown",
+    "Acetobacteraceae"="tomato3",
+    "Snodgrassella"=cols[6],
+    "Gilliamella" =cols[7],
+    "Bartonella"=cols[3],
+    "Frischella"=cols[5],
+    "Apis"=cols[1],
+    "GB_VCs"="turquoise"
+  )
   
-  if (file.exists(dir)){} 
-  else {
-    dir.create(file.path(dir))
-  }
+  un_col<- c("azure3")
+  names(un_col)<-unclass
   
-  pdf(file, height = 8.27, width=11.69)
-  print(cov_hist)
-  dev.off()
+  unrep_gen<- genera[!(genera %in% levs)]
+  un_n<- length(unique(unrep_gen))
+  
+  new_col<-  colorRampPalette(brewer.pal(9, add_pal))(un_n)
+  names(new_col)=unique(unrep_gen)
+  
+  col_list<- append(new_col, col_list)
+  col_list<- append(un_col, col_list)
+  col_list<- col_list[names(col_list) %in% genera]
+  
+  new_levs<- append(unique(unrep_gen),levs)
+  new_levs<- append(unclass,new_levs)
+  new_levs<- new_levs[new_levs %in% genera]
+  
+  return(list(new_levs, col_list))
 }
+
+

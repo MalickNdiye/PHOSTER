@@ -25,8 +25,8 @@ def create_df_list(list):
 # opens dataframes in file list and creates list of df
     df_list=[]
     for file in list:
-        sam=file.split("_")[0]
-        sam=sam.split("/")[-1]
+        sam=file.split("/")[-1]
+        sam=sam.split("_")[0]
         df=pd.read_csv(file, delimiter="\t")
 
         df.insert(0, "sample", sam, True)
@@ -55,7 +55,8 @@ def get_good_mags(dir, good_mags):
 
 dfs=create_df_list(stats_list)
 full_df=pd.concat(dfs)
-filtred_df=full_df.query("Completeness>50 and Contamination<10") # MAGs with completeness < 50% and contamination > 10% are not even considered for dereplication by dRep
+filter="Completeness>"+str(snakemake.params["compl"])+ " and Contamination<" +str(snakemake.params["cont"])
+filtred_df=full_df.query(filter) # MAGs with completeness < 50% and contamination > 10% are not even considered for dereplication by dRep
 
 full_df.to_csv(out_full_stats, sep="\t", index=False)
 filtred_df.to_csv(out_filtered_stats, sep="\t", index=False)

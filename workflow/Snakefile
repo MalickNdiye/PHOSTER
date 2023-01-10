@@ -450,7 +450,8 @@ rule parse_motus:
 #        of every other sample
 #   (3): scaffold are binned into MAGS in functon of their coverage across samples
 #        using metabat2
-#   (4): Scaffolds are QCed
+#   (4): MAGs are QCed, filtered in function of completeness and contamination,
+#        and taxonomically classified
 ################################################################################
 ################################################################################
 
@@ -612,7 +613,7 @@ rule merge_depths:
         "scripts/MAGs/merge_depths.pl {input.depth_files} > {output.depth_file_merged}"
 
 ##################################### (3) ######################################
-# The following rules are used to bin the contigs of every assembly into MAGs
+# The following rule is used to bin the contigs of every assembly into MAGs
 # using the mapping information of section 2
 
 rule binning:
@@ -643,7 +644,9 @@ rule binning:
 
 
 ##################################### (4) ######################################
+# These rules rule perform QC of the the MAGS
 
+# Run checkm on all MAGs
 rule checkm_QC:
     input:
         dir="../results/MAG_binning/bins/{sam_name2}B-metabat2/",
@@ -665,33 +668,11 @@ rule checkm_QC:
         runtime= "01:00:00"
     shell:
     #   "checkm data SetRoot | echo {params.db}" #TODO maybe this works
-        "export CHECKM_DATA_PATH={params.db}; " #TODO there is a problem in setting the database with check data SetRoot. I had to enter the conda environment and set it myself, apparently this doesn't happen in v1.0.15, I should try with that one
+        "export CHECKM_DATA_PATH={params.db}; " #TODO there is a problem in setting the database with check data SetRoot. I had to enter the conda environment and set it myself, apparently this doesn't happen in v1.2.1
         "checkm lineage_wf {input.dir} {output.dir} -x fa -t {threads}; "
         "checkm qa {output.dir}/lineage.ms {output.dir} -o 2 -f {output.file} --tab_table"
 
-rule checkm_plots:
-    input:
-        dir_asmbl="../results/MAG_binning/bins/{sam_name2}B-metabat2/",
-        dir_checkm="../results/MAG_binning/checkm_QC/{sam_name2}B_checkm_QC/"
-    output:
-        dir=directory("../results/MAG_binning/checkm_QC/{sam_name2}B_checkm_QC/checkm_plots/")
-    log:
-        "logs/annot_QC/checkm/plots/{sam_name2}B_plot_checkm.log"
-    benchmark:
-        "logs/MAGs/checkm/plots/{sam_name2}B_checkm_QC.benchmark"
-    threads: 2
-    conda:
-        "envs/checkm_env.yaml"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 5000,
-        runtime= "01:00:00"
-    shell:
-        "checkm marker_plot {input.dir_checkm} {input.dir_asmbl} {output.dir} -x fa --image_type svg; "
-        "checkm coding_plot {input.dir_checkm} {input.dir_asmbl} {output.dir} 0 -x fa --image_type svg; "
-        "checkm gc_plot {input.dir_asmbl} {output.dir} 0 -x fa --image_type svg; "
-        "checkm nx_plot  {input.dir_asmbl} {output.dir} -x fa --image_type svg"
-
+# Find MAGs with >50% completeness and <10% contamination and aggreagate them
 rule aggregate_checkm_QC:
     input:
         bins="../results/MAG_binning/bins",
@@ -699,10 +680,13 @@ rule aggregate_checkm_QC:
     output:
         full_stats="../results/MAG_binning/checkm_QC/summary/all_MAGs_stats.tsv",
         filtered_stats="../results/MAG_binning/checkm_QC/summary/filtered_MAGs_stats.tsv",
-        filered_mags=directory("../results/MAG_binning/bins/filtered_mags")
+        filered_mags=directory("../scratch_link/MAG_binning/bins/filtered_mags")
     log:
         "logs/MAGs/checkm/aggregate_checkm.log"
     threads: 1
+    params:
+        compl=75,
+        cont=10
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 10000,
@@ -710,9 +694,10 @@ rule aggregate_checkm_QC:
     script:
         "scripts/MAGs/aggregate_checkm.py"
 
+# Taxonomically classify the filtered MAGs
 rule classify_gtdbtk:
     input:
-        filtered_mags="../results/MAG_binning/bins/filtered_mags/"
+        filtered_mags="../scratch_link/MAG_binning/bins/filtered_mags/"
     output:
         class_out=directory("../results/MAG_binning/gtdbtk_classification/")
     log:
@@ -731,8 +716,86 @@ rule classify_gtdbtk:
     shell:
         "export GTDBTK_DATA_PATH={params.db}; "
         "gtdbtk classify_wf --genome_dir {input.filtered_mags} --extension fa --out_dir {output.class_out} --cpus {threads}"
+
 ################################################################################
-################################## MAPPING #####################################
+########################## Reference Database ##################################
+################################################################################
+# Once we get all our good quality MAGs, it is time to create a reference Database.
+# To do so, all filtered MAGs will be aggreagted in a directory with genomes
+# from isolates of A. mellifera and A. cerana gut microbiota. Then, Genomes will
+# be dereplicated at 95% ANI using dRep. This will yield a species-level database,
+# where every entry should correspond to a specie.
+################################################################################
+################################################################################
+
+# This rule aggregates the filtered MAGs and reference genomes in one directory
+rule aggregate_refs:
+    input:
+        filtered_mags="../scratch_link/MAG_binning/bins/filtered_mags/",
+        refs_isolates="../data/reference_assemblies/hb_bacteria/non_redundant/single_genomes/contigs/"
+    output:
+        all_refs=directory("../scratch_link/reference_genomes_redundant/")
+    log:
+        "logs/ref_db/aggregate.log"
+    threads: 2
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 1500,
+        runtime= "00:30:00"
+    shell:
+        "mkdir -p {output}; "
+        "cp {input.filtered_mags}/*.fa {output}; "
+        "cp {input.refs_isolates}/*.fna {output}"
+
+# This rule runs dRep for 95% dereplication
+rule run_dRep:
+    input:
+        all_refs="../scratch_link/reference_genomes_redundant/"
+    output:
+        drep_out=directory("../results/reference_db/")
+    log:"logs/ref_db/dRep.log"
+    benchmark:"logs/ref_db/dRep.benchmark"
+    threads: 25
+    conda:
+        "envs/drep_env.yaml"
+    params:
+        checkm_db="resources/default_DBs/checkm_db",
+        compl=75
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "04:00:00"
+    shell:
+        "dRep dereplicate {output.drep_out} -g {input.all_refs}/* --clusterAlg single --completeness {params.compl} -p {threads}"
+
+rule parse_dRep:
+    input:
+        checkm_filt="../results/MAG_binning/checkm_QC/summary/filtered_MAGs_stats.tsv",
+        gtdb_dir="../results/MAG_binning/gtdbtk_classification/",
+        clust_dir="../results/reference_db/data_tables/",
+        mtdata= "../data/metadata/RefGenomes_isolates_mtdata.csv"
+    output:
+        clust_info="../results/reference_db/data_tables/clust_info.tsv",
+        clust_assign="../results/reference_db/data_tables/clust_assign.tsv",
+        to_delete="../results/reference_db/data_tables/to_delete.tsv",
+        clust_final="../results/reference_db/data_tables/clust_filtered.tsv",
+        clust_win_final="../results/reference_db/data_tables/clust_filtered_winners.tsv"
+    conda:
+        "envs/base_R_env"
+    log:
+        "logs/ref_db/parse_drep.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 5000,
+        runtime= "00:30:00"
+    script:
+        "scripts/MAGs/parse_drep.R"
+
+
+
+
+################################################################################
+######################### MAP TO REFERENCE DB ##################################
 ################################################################################
 
 rule build_ref_index:
