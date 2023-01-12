@@ -3,7 +3,9 @@ configfile: "../config/config.yaml"
 rule all:
     input:
         expand("../results/MAG_binning/bins/{sam_name2}B-metabat2/", sam_name2=config["sam_names"]),
-        "../results/assembly/HF_assembly/all_HFassemblies_summary_tab.txt"
+        "../results/assembly/HF_assembly/all_HFassemblies_summary_tab.txt",
+        expand("../scratch_link/inStrain/profile_{type}/{sample}{type}_profile/", sample=config["sam_names"], type="B"),
+        "../results/mapping/all_B_mapstats.tsv"
 
 #################### Main Functions #######################################
 import os
@@ -42,8 +44,12 @@ def get_direction_r2(wildcards) :
     if len(r2_l4) >0: r_list.extend(r2_l4)
     return(r_list)
 
-def get_files_commas(path, sep=","):
+def get_files_commas(path, sep=",", remove_hidden=True):
     file_l=os.listdir(path)
+
+    if remove_hidden:
+        file_l=[f for f in file_l if not f.startswith(".")]
+
     file_l2=[]
     for f in file_l:
         file_l2.append(os.path.join(path,f))
@@ -561,16 +567,14 @@ rule backmapping: # risk of running out of buffer memory, run fewer jobs at the 
         runtime="72:00:00",
         mem_mb = "10000"
     params:
-        basename="{sam_name2}B_contigs_parsed",
-        maxins=400,
-        minins=50
+        basename="{sam_name2}B_contigs_parsed"
     threads: 15
     conda: "envs/map_env.yaml"
     log:
         "logs/MAGs/backmapping/{sam_name}B_backmapping_to{sam_name2}asmbl.log"
     benchmark: "logs/MAGs/backmapping/{sam_name}B_backmapping_to{sam_name2}asmbl.benchmark"
     shell:
-        "bowtie2 -x {input.assembly}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --maxins {params.maxins} --minins {params.minins} --threads {threads}"
+        "bowtie2 -x {input.assembly}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --threads {threads}"
 
 
 rule backmapping_depths:
@@ -578,7 +582,7 @@ rule backmapping_depths:
         sam= "../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.sam"
     output:
         bam= temp("../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.bam"),
-        depth= "../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.depth"
+        depth= temp("../scratch_link/MAG_binning/backmapping/{sam_name}B/{sam_name}B_mapped_to_{sam_name2}B_contigs_parsed.depth")
     resources:
         account="pengel_beemicrophage",
         runtime="10:00:00",
@@ -721,10 +725,10 @@ rule classify_gtdbtk:
 ########################## Reference Database ##################################
 ################################################################################
 # Once we get all our good quality MAGs, it is time to create a reference Database.
-# To do so, all filtered MAGs will be aggreagted in a directory with genomes
+# To do so, all filtered MAGs will be aggreagted in a directory with 211 genomes
 # from isolates of A. mellifera and A. cerana gut microbiota. Then, Genomes will
 # be dereplicated at 95% ANI using dRep. This will yield a species-level database,
-# where every entry should correspond to a specie.
+# where every entry should correspond to a species.
 ################################################################################
 ################################################################################
 
@@ -752,14 +756,13 @@ rule run_dRep:
     input:
         all_refs="../scratch_link/reference_genomes_redundant/"
     output:
-        drep_out=directory("../results/reference_db/")
+        clust_dir=directory("../results/reference_db/")
     log:"logs/ref_db/dRep.log"
     benchmark:"logs/ref_db/dRep.benchmark"
     threads: 25
     conda:
         "envs/drep_env.yaml"
     params:
-        checkm_db="resources/default_DBs/checkm_db",
         compl=75
     resources:
         account = "pengel_beemicrophage",
@@ -768,6 +771,7 @@ rule run_dRep:
     shell:
         "dRep dereplicate {output.drep_out} -g {input.all_refs}/* --clusterAlg single --completeness {params.compl} -p {threads}"
 
+# This rule aggreagtes dRep data with checkm and gtdb-TK data to obtain some summary tables
 rule parse_dRep:
     input:
         checkm_filt="../results/MAG_binning/checkm_QC/summary/filtered_MAGs_stats.tsv",
@@ -775,15 +779,17 @@ rule parse_dRep:
         clust_dir="../results/reference_db/data_tables/",
         mtdata= "../data/metadata/RefGenomes_isolates_mtdata.csv"
     output:
-        clust_info="../results/reference_db/data_tables/clust_info.tsv",
-        clust_assign="../results/reference_db/data_tables/clust_assign.tsv",
-        to_delete="../results/reference_db/data_tables/to_delete.tsv",
-        clust_final="../results/reference_db/data_tables/clust_filtered.tsv",
-        clust_win_final="../results/reference_db/data_tables/clust_filtered_winners.tsv"
+        clust_info="../results/reference_db/summary_data_tables/clust_info.tsv",
+        clust_assign="../results/reference_db/summary_data_tables/clust_assign.tsv",
+        to_delete="../results/reference_db/summary_data_tables/to_delete.tsv",
+        clust_final="../results/reference_db/summary_data_tables/clust_filtered.tsv",
+        clust_win_final="../results/reference_db/summary_data_tables/clust_filtered_winners.tsv"
     conda:
-        "envs/base_R_env"
+        "envs/base_R_env.yaml"
     log:
         "logs/ref_db/parse_drep.log"
+    params:
+        us_func="scripts/useful_func.R"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 5000,
@@ -791,77 +797,103 @@ rule parse_dRep:
     script:
         "scripts/MAGs/parse_drep.R"
 
-
-
+# This rule plots dendograms with taxonomic info for each cluster, also it deletes fro, the dreplicated database all cluster that have no classification at the genus level
+rule filter_dRep_db:
+    input:
+        clust_assign="../results/reference_db/summary_data_tables/clust_assign.tsv",
+        mtdata= "../data/metadata/RefGenomes_isolates_mtdata.csv",
+        to_delete="../results/reference_db/summary_data_tables/to_delete.tsv",
+        clust_dir="../results/reference_db/data/Clustering_files/",
+        old_db="../results/reference_db/dereplicated_genomes/"
+    output:
+        out_fgs=directory("../results/reference_db/figures/secondary_clusters_dendograms/"),
+        filt_db=directory("../results/reference_db/dereplicated_genomes_filtered/")
+    conda:
+        "envs/drep_env.yaml"
+    log:
+        "logs/ref_db/filter_drep_db.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "00:30:00"
+    script:
+        "scripts/MAGs/analyze_drep.py"
 
 ################################################################################
 ######################### MAP TO REFERENCE DB ##################################
+#Once our database is well curated, we can TODO
 ################################################################################
+rule concat_genomes:
+    input:
+        refs="../results/reference_db/dereplicated_genomes_filtered/"
+    output:
+        concat="../results/reference_db/all_genomes/all_bacterial_RefGenomes.fasta",
+        stb="../results/reference_db/all_genomes/all_bacterial_RefGenomes.stb"
+    log:
+        "logs/ref_db/concat_refs.log"
+    threads: 2
+    conda:
+        "envs/drep_env.yaml"
+    params:
+        refs=get_files_commas("../results/reference_db/dereplicated_genomes_filtered/", sep=" ")
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 1500,
+        runtime= "00:30:00"
+    shell:
+        "cat {input.refs}/*.f* >> {output.concat}; "
+        "parse_stb.py --reverse -f {params.refs}  -o {output.stb}"
 
 rule build_ref_index:
     input:
-        ref="../scratch_link/Database_play/dRep_out/"
+        ref="../results/reference_db/all_genomes/all_bacterial_RefGenomes.fasta"
     output:
-        dir=directory("../scratch_link/Database_play/hb_drep_indx/")
+        index=directory("../results/reference_db/bacteria_index/")
     conda:
         "envs/map_env.yaml"
     threads: 25
-    params:
-        basename="hb_bacteria_drep_index",
-        ref=get_files_commas("../scratch_link/Database_play/dRep_out/dereplicated_genomes/")
-        #ref="../data/reference_assemblies/large_refs/GB_ViralClusters.fna", # for phages
-        #ref="../data/reference_assemblies/hb_bacteria/reduced/honeybee_gut_microbiota_db_red.fna", #for bacteria
     log:
         "logs/mapping/build_bowtie_index.log"
+    params:
+        basename="all_bacterial_RefGenomes",
     resources:
         account= "pengel_beemicrophage",
         mem_mb= 20000,
         runtime= "01:00:00"
     shell:
-        "mkdir -p {output.dir}; "
-        "bowtie2-build {params.ref} {output.dir}/{params.basename} --threads {threads}"
+        "mkdir -p {output.index}; "
+        "bowtie2-build {input.ref} {output.index}/{params.basename} --threads {threads}"
 
 rule MapReads:
     input:
-        dir="../scratch_link/Database_play/hb_drep_indx/",
+        index="../results/reference_db/bacteria_index/",
         R1="../data/host_filtered_reads/{sample}{type}_R1_HF.fastq.gz",
         R2="../data/host_filtered_reads/{sample}{type}_R2_HF.fastq.gz",
     output:
-        # dir=directory("../results/mapping/mapdata/"),
-        # sam=temp("../results/mapping/mapdata_virus/{sample}_mapping.sam"),
-        sam=temp("../results/mapping/mapdata_{type}/{sample}{type}_mapping.sam"),
-        # unmapped_R1="../results/mapping/{sample}_refmappings/{sample}_R1_unmapped.fq",
-        # unmapped_R2="../results/mapping/{sample}_refmappings/{sample}_R2_unmapped.fq"
+        sam=temp("../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.sam"),
     wildcard_constraints:
         sample="\d+"
     conda:
         "envs/map_env.yaml"
     threads: 25
     params:
-        basename="hb_bacteria_drep_index",
-        maxins=900,
-        minins=50
-        #ref="../data/reference_assemblies/large_refs/GB_ViralClusters.fna", # for phages
-        #ref="../data/reference_assemblies/hb_bacteria/reduced/honeybee_gut_microbiota_db_red.fna", #for bacteria
+        basename="all_bacterial_RefGenomes"
     log:
-        "logs/mapping/{sample}{type}_bbmap_mapping.log"
+        "logs/mapping/map/{sample}{type}_bbmap_mapping.log"
+    benchmark:
+        "logs/mapping/map/{sample}{type}_bbmap_mapping.benchmark"
     resources:
         account= "pengel_beemicrophage",
         mem_mb= 200000,
         runtime= "07:00:00"
     shell:
-        "bowtie2 -x {input.dir}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --maxins {params.maxins} --minins {params.minins} --threads {threads}"
-        # "(bbmap.sh in1={input.R1} in2={input.R2} ref={params.ref} out={output.sam} \
-        # rebuild=t nodisk=t outu1={output.unmapped_R1} --use_full_fasta_header \
-        # outu2={output.unmapped_R2} nzo=f ambiguous2=all ---threadsXmx{params.xmx} threads={threads})2> {log}"
+        "bowtie2 -x {input.index}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --threads {threads}"
 
 rule generate_bam:
     input:
-        #sam="../results/mapping/mapdata_virus/{sample}_mapping.sam"
-        sam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.sam"
+        sam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.sam"
     output:
-        #bam="../results/mapping/mapdata_virus/{sample}_mapping.bam",
-        bam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
+        bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
         cf=temp("../results/mapping/{sample}{type}_library_count.tsv")
     wildcard_constraints:
         sample="\d+"
@@ -882,45 +914,17 @@ rule generate_bam:
         "count=$(samtools view -c {output.bam}); "
         'echo -e "${{lib}}\t${{count}}" >> {output.cf}'
 
-
-rule get_unmapped:
-    input:
-        bam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.bam"
-    output:
-        sorted_unmapped=".../results/mapping/mapout_{sample}{type}/{sample}{type}_unmapped.sorted.bam",
-        unmapped="../results/mapping/mapout_{sample}{type}/{sample}{type}_unmapped.bam",
-        unmapped_R1="../results/mapping/mapout_{sample}{type}/{sample}{type}_R1_unmapped.fastq",
-        unmapped_R2="../results/mapping/mapout_{sample}{type}/{sample}{type}_R2_unmapped.fastq"
-    wildcard_constraints:
-        sample="\d+"
-    conda:
-        "envs/manip_bap_env.yaml"
-    threads: 8
-    log:
-        "logs/mapping/unmapped/{sample}{type}_extract_unmapped.log"
-    resources:
-        account= "pengel_beemicrophage",
-        mem_mb= 20000,
-        runtime= "01:00:00"
-    shell:
-        "samtools view -b -f 4 -@ {threads} {input.bam} > {output.unmapped}; "
-        "samtools sort {output.unmapped} -n -@ {threads} -o {output.sorted_unmapped}; "
-        "bedtools bamtofastq -i {output.sorted_unmapped} -fq {output.unmapped_R1} -fq2 {output.unmapped_R2}"
-
-################################################################################
-################################## METAPOP #####################################
-################################################################################
 rule mappings_stats:
     input:
-        bam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
+        bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
     output:
-        "../results/mapping/mapout_{sample}{type}/{sample}{type}_mapstats.tsv"
+        temp("../results/mapping/mapout_{sample}{type}/{sample}{type}_mapstats.tsv")
     wildcard_constraints:
         sample="\d+"
     conda:
         "envs/map_env.yaml"
     log:
-        "logs/mapping/{sample}{type}_mapstats.log"
+        "logs/mapping/mapstats/{sample}{type}_mapstats.log"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 20000,
@@ -933,7 +937,7 @@ acc="B"
 
 rule merge_mapping_stats:
     input:
-        filelist=expand("../results/mapping/mapout_{sample}{type}/{sample}{type}_mapstats.tsv", sample=config["sam_names"], type=acc)
+        filelist=expand("../results/mapping/mapout_{sample}{{type}}/{sample}{{type}}_mapstats.tsv", sample=config["sam_names"])
     output:
         "../results/mapping/all_{type}_mapstats.tsv"
     wildcard_constraints:
@@ -949,6 +953,130 @@ rule merge_mapping_stats:
     threads: 2
     script:
         "scripts/mapping/format_flagstats.R"
+
+rule sort_bam_QC:
+    input:
+        bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.bam"
+    output:
+        "../scratch_link/mapping/sorted_bams/{sample}{type}_mapping_sorted.bam"
+    log:
+        "logs/mapping/QC/sort_bam_{sample}{type}.log"
+    conda:
+        "envs/metapop_env.yaml"
+    threads: 5
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 8000,
+        runtime= "01:30:00"
+    shell:
+        "samtools sort {input.bam} -@ {threads} -o {output}"
+
+rule prepare_bamQC:
+    input:
+        bam=expand("../scratch_link/mapping/sorted_bams/{sample}{{type}}_mapping_sorted.bam", sample=config["sam_names"])
+    output:
+        "../results/mapping/QC_{type}/bamqc_config.txt"
+    log:
+        "logs/mapping/QC/prepare_{type}_bamQC.log"
+    threads: 2
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 1000,
+        runtime= "00:15:00"
+    script:
+        "scripts/mapping/prepare_bamQC.py"
+
+rule bamQC:
+    input:
+        config="../results/mapping/QC_{type}/bamqc_config.txt"
+    output:
+        directory("../results/mapping/QC_{type}/multi_bamQC/")
+    log:
+        "logs/mapping/QC/multi_{type}_bamQC.log"
+    benchmark:
+        "logs/mapping/QC/multi_{type}_bamQC.benchmark"
+    threads: 12
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "02:30:00"
+    conda:
+        "envs/qualimap.yaml"
+    shell:
+        "qualimap multi-bamqc -d {input.config} -outdir {output} -r -c"
+
+
+################################################################################
+################################## INSTRAIN ####################################
+################################################################################
+
+rule generate_genelist:
+    input:
+        ref="../results/reference_db/all_genomes/all_bacterial_RefGenomes.fasta"
+    output:
+        "../results/inStrain/all_bacterial_RefGenomes_genes.fna"
+    conda:
+        "envs/inStrain.yaml"
+    threads: 25
+    log:
+        "logs/instrain/generate_gene_list.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 20000,
+        runtime= "1:00:00"
+    shell:
+        "prodigal -i {input.ref} -d {output}"
+
+rule instrain_profile:
+    input:
+        bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
+        ref="../results/reference_db/all_genomes/all_bacterial_RefGenomes.fasta",
+        genL="../results/inStrain/all_bacterial_RefGenomes_genes.fna",
+        stb="../results/reference_db/all_genomes/all_bacterial_RefGenomes.stb",
+    output:
+        directory("../scratch_link/inStrain/profile_{type}/{sample}{type}_profile/")
+    threads: 32
+    conda:
+        "envs/inStrain.yaml"
+    log:
+        "logs/instrain/{sample}{type}_profile.log"
+    benchmark:
+        "logs/instrain/{sample}{type}_profile.benchmark"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 500000,
+        runtime= "72:00:00"
+    params:
+        min_ANI=0.92
+    shell:
+        "(inStrain profile {input.bam} {input.ref} -o {output} --min_read_ani {params.min_ANI} -p {threads} -g {input.genL} -s {input.stb})2> {log}"
+
+rule instrain_compare:
+    input:
+        IS=expand("../scratch_link/inStrain/profile_{{type}}/{sample}{{type}}_profile/", sample=config["sam_names"]),
+        ref="../results/reference_db/all_genomes/all_bacterial_RefGenomes.fasta",
+        genL="../results/inStrain/all_bacterial_RefGenomes_genes.fna",
+        stb="../results/reference_db/all_genomes/all_bacterial_RefGenomes.stb",
+    output:
+        directory("../scratch_link/inStrain/compare_{type}/")
+    threads: 46
+    conda:
+        "envs/inStrain.yaml"
+    log:
+        "logs/instrain/{type}_compare.log"
+    benchmark:
+        "logs/instrain/{type}_compare.benchmark"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 200000,
+        runtime= "72:00:00"
+    shell:
+        "(inStrain compare -i {input.IS} -o {output} -p {threads} -g {input.genL} -s {input.stb})2> {log}"
+
+
+################################################################################
+################################## METAPOP #####################################
+################################################################################
 
 rule megre_libs:
     input:
@@ -1001,7 +1129,7 @@ rule run_metapop_virus:
 #     threads: 46
 #     params:
 #         lib="/work/FAC/FBM/DMF/pengel/beemicrophage/mndiaye1/PHOSTER/workflow/.snakemake/conda/6ee4f263563c6d0db030078388037b81/lib/R/library/"
-#     log:
+#     log:drep_db.fasta
 #         "logs/metapop/run_metapop_{type}.log"
 #     resources:
 #         account = "pengel_beemicrophage",
@@ -1032,47 +1160,7 @@ rule run_metapop_bacteria_test:
     shell:
         "(metapop --input_samples {input.bams} --reference {input.ref_bact} --norm {input.cf} --whole_genomes -o {output} --threads {threads})2> {log}"
 
-################################################################################
-################################## INSTRAIN ####################################
-################################################################################
 
-rule generate_genelist:
-    input:
-        ref="../data/reference_assemblies/hb_bacteria/derp_db/drep_db.fasta"
-    output:
-        "../results/inStrain/drep_db_genes.fa"
-    conda:
-        "envs/inStrain.yaml"
-    threads: 25
-    log:
-        "logs/instrain/generate_gene_list.log"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 20000,
-        runtime= "1:00:00"
-    shell:
-        "prodigal -i {input.ref} -d {output}"
-
-rule instrain_profile:
-    input:
-        bam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
-        ref="../data/reference_assemblies/hb_bacteria/derp_db/drep_db.fasta",
-        genL="../results/inStrain/drep_db_genes.fa"
-    output:
-        directory("../results/inStrain/profile_{type}/{sample}{type}_profile/")
-    threads: 25
-    conda:
-        "envs/inStrain.yaml"
-    log:
-        "logs/instrain/{sample}{type}_profile.log"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 200000,
-        runtime= "72:00:00"
-    params:
-        genomes_id=get_files_commas("../scratch_link/Database_play/dRep_out/dereplicated_genomes/", sep=" ")
-    shell:
-        "(inStrain profile {input.bam} {input.ref} -o {output} -p {threads} -g {input.genL} -s {params.genomes_id})2> {log}"
 
 
 
@@ -1109,9 +1197,9 @@ rule unmapped_metaspades_assembly:
 
 
 
-###############################################################################
-###################################################################################
-##################################################################################
+################################################################################
+############################ TRASH #############################################
+################################################################################
 sample_nam="francesco"
 # This rule creates both a file containing genereal info for all the assemblies and
 # a fasta with all the contigs
@@ -1258,3 +1346,27 @@ rule quast_QC:
          --contig-thresholds 1000,2000,2500,3000,5000,7500,10000,15000,20000,25000,30000,35000,40000,45000,50000,55000,60000,70000,80000,90000,100000 \
          -t {threads} --unique-mapping"
          #--mp12 {input.reads}
+
+# rule get_unmapped:
+#     input:
+#         bam="../results/mapping/mapdata_{type}/{sample}{type}_mapping.bam"
+#     output:
+#         sorted_unmapped=".../results/mapping/mapout_{sample}{type}/{sample}{type}_unmapped.sorted.bam",
+#         unmapped="../results/mapping/mapout_{sample}{type}/{sample}{type}_unmapped.bam",
+#         unmapped_R1="../results/mapping/mapout_{sample}{type}/{sample}{type}_R1_unmapped.fastq",
+#         unmapped_R2="../results/mapping/mapout_{sample}{type}/{sample}{type}_R2_unmapped.fastq"
+#     wildcard_constraints:
+#         sample="\d+"
+#     conda:
+#         "envs/manip_bap_env.yaml"
+#     threads: 8
+#     log:
+#         "logs/mapping/unmapped/{sample}{type}_extract_unmapped.log"
+#     resources:
+#         account= "pengel_beemicrophage",
+#         mem_mb= 20000,
+#         runtime= "01:00:00"
+#     shell:
+#         "samtools view -b -f 4 -@ {threads} {input.bam} > {output.unmapped}; "
+#         "samtools sort {output.unmapped} -n -@ {threads} -o {output.sorted_unmapped}; "
+#         "bedtools bamtofastq -i {output.sorted_unmapped} -fq {output.unmapped_R1} -fq2 {output.unmapped_R2}"
