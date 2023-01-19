@@ -11,6 +11,7 @@ library(data.table)
 library(tidyverse)
 library(RColorBrewer)
 library(dendextend)
+library(gtools)
 source("../useful_func.R")
 ```
 
@@ -213,81 +214,64 @@ ggplot(gtdb_core, aes(x=Completeness, y= `Strain heterogeneity`, group=genus))+
 ```
 
 # Derepliction
-
 ```{r}
-clust_info_p<-"../../../results/reference_db/data_tables/Cdb.csv"
-clust_win_p<- "../../../results/reference_db/data_tables/Wdb.csv"
-mtdata_p<- "../../../data/metadata/RefGenomes_isolates_mtdata.csv"
+clust_p<- "../../../results/reference_db/summary_data_tables/clust_filtered.tsv"
+clust_win_p<- "../../../results/reference_db/summary_data_tables/clust_filtered_winners.tsv"
 
-clust_info<-read.csv(clust_info_p, header=T)
-clust_win<-read.csv(clust_win_p, header=T)
-
-mtdata<- read.csv(mtdata_p, header=T, sep="\t") 
-
-clust_info<- clust_info %>%
-  dplyr::mutate("ref"=ifelse(genome %in% clust_win$genome, "*",""),
-                "species"=get_mtdata("../../../data/metadata/RefGenomes_isolates_mtdata.csv",
-                                     new ="Species",  
-                                     df_corr = gsub(" ", "",gsub(".fna", "", genome))),
-                "SDP"=get_mtdata("../../../data/metadata/RefGenomes_isolates_mtdata.csv", new = "SDP",  df_corr = gsub(".fna", "", genome)),
-                "Bin Id"= gsub(".fa|.fna","", genome))
-
-clust_assign<- clust_info %>% group_by(secondary_cluster) %>%
-  dplyr::mutate(secondary_cluster_n=length(secondary_cluster),
-                SDP=paste(unique(SDP[!is.na(SDP)]), collapse="/"),
-                species=paste(unique(species[!is.na(species)]), collapse="/"))
-
-clust_assign$SDP[clust_assign$SDP==""]<- "unclassified"
-clust_assign$species[clust_assign$species==""]<-"unclassified"
-
-```
-
-```{r}
-tax_clust<- gtdb_QC %>% select(`Bin Id`, genus, species ) %>% rename("gtdb_sp"=species)
-
-clust_assign <- clust_assign %>% left_join(., tax_clust, by="Bin Id") 
-
-clust_assign<- clust_assign %>%
-  dplyr::mutate(species=ifelse((species=="unclassified" & is.na(gtdb_sp)), genus,
-                                ifelse((species=="unclassified" & !is.na(gtdb_sp)), gtdb_sp, species)))
-
-clust_assign$species[is.na(clust_assign$species)]<-"unclassified"
-```
-
-```{r}
-gtdb_reduced<- gtdb_QC %>% ungroup()%>% select(`Bin Id`, Completeness, Contamination, `Strain heterogeneity`, `Genome size (bp)`, `N50 (contigs)`, )
-
-clust_assign_full<- left_join(clust_assign, gtdb_reduced, by="Bin Id") %>%
-  dplyr::mutate("isolate"=ifelse(grepl("MAG", genome), "no", "yes"))
-
-clust_info_full<- clust_info %>% 
-  dplyr::mutate("isolate"=ifelse(grepl("MAG", genome), "no", "yes")) 
+clust<- read.csv(clust_p, header=T, sep="\t") %>% 
+  group_by(species)%>%
+  dplyr::mutate(genus=unlist(strsplit(species, split=" "))[1]) 
   
 
-to_delete<- clust_assign_full %>% filter(isolate=="no") %>%
-  filter(SDP=="unclassified" & species=="unclassified")
+clust_win<- read.csv(clust_win_p, header=T, sep="\t") %>% 
+  group_by(species)%>%
+  dplyr::mutate(genus=unlist(strsplit(species, split=" "))[1])
 ```
 
 ```{r}
-#clust_assign_full<-""
-#to_delete<-""
+levs<- get_gen_col_abs(clust_win$genus)[[1]]
+cols<-get_gen_col_abs(clust_win$genus)[[2]]
+
+clust_win %>% group_by(genus) %>%
+  dplyr::summarise(genus_n=length(genus)) %>%
+  ggplot(aes(x="", y=genus_n, fill=factor(genus, levels = levs)))+
+  geom_bar(stat="identity", width=1) +
+  ggtitle("reference database: species composition")+
+  scale_fill_manual(values=cols, name="Genus")+
+  theme_void()+
+  coord_polar("y", start=0)
+```
+```{r, results="asis", out.width = '100%'}
+plts_p<-"../../../results/reference_db/figures/secondary_clusters_dendograms"
+plots <- list.files(plts_p)
+
+for(i in plots){
+  filename <- file.path(plts_p, i)
+  a<- knitr::include_graphics(filename)
+  print(a)
+}
+
 ```
 
+
+
+# Mapping to Reference Database
 ```{r}
-clust_final<- clust_assign_full %>% filter(!`Bin Id` %in% to_delete$`Bin Id`) %>% 
-  relocate("Bin Id", .before=genome)
+mapdata_p<- "../../../results/mapping/all_B_mapstats.tsv"
 
-clust_win_final<- clust_final%>% filter(ref=="*") %>% 
-  relocate("Bin Id", .before=genome)
+mapdata<- read.csv(mapdata_p, header=T, sep="\t") %>%
+  mutate(perc_map=(mapped/total_reads)*100,
+         perc_properly=(properly_paired/total_reads)*100,
+         perc_singletons=(singletons/total_reads)*100)
 ```
 
-
-```{r}
-write.table(clust_info_full, "../../../results/reference_db/data_tables/clust_info.tsv", quote = F, row.names = F, sep = "\t")
-
-write.table(clust_assign_full, "../../../results/reference_db/data_tables/clust_assign.tsv", quote = F, row.names = F, sep = "\t")
+```{r refstats analysis}
+ggplot(mapdata, aes(x=factor(sample, levels=mixedsort(sample)),y=perc_map))+
+  geom_bar(stat="identity", position = position_dodge())+
+  labs(x="", y="% mapped")+
+  scale_y_continuous(breaks = seq(0, 110, by = 10))+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
-
-
 
 

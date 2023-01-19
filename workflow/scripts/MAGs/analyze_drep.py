@@ -11,13 +11,12 @@ os.listdir("../results/reference_db/data_tables/")
 
 # Open dRep tables
 
-clust_info_p="../results/reference_db/data_tables/clust_info.tsv"
-clust_assign_p="../results/reference_db/data_tables/clust_assign.tsv"
-mtdata_p= "../data/metadata/RefGenomes_isolates_mtdata.csv"
-to_delete_p="../results/reference_db/data_tables/to_del.tsv"
-pickle_p="../results/reference_db/data/Clustering_files/"
 
-clust_info=pd.read_csv(clust_info_p, delimiter="\t")
+clust_assign_p=snakemake.input["clust_assign"]
+mtdata_p=snakemake.input["mtdata"]
+to_delete_p=snakemake.input["to_delete"]
+pickle_p=snakemake.input["clust_dir"]
+
 clust_assign=pd.read_csv(clust_assign_p, delimiter="\t")
 mtdata=pd.read_csv(mtdata_p, delimiter="\t")
 to_delete=pd.read_csv(to_delete_p, delimiter="\t")
@@ -70,17 +69,17 @@ def plot_clust(file):
 file_list=os.listdir(pickle_p)
 file_list=[f for f in file_list if "primary" not in f]
 
-out_fg="../results/reference_db/figures/secondary_clusters_dendograms/"
+out_fg=snakemake.output["out_fgs"]
 if not os.path.exists(out_fg): 
     os.mkdir(out_fg)
 
 for file in file_list:
     filename=file.strip(".pickle")
-    dend=plot_clust(pickle_p + file)
-    plt.savefig(out_fg+filename+".png", dpi=300, bbox_inches='tight')
+    dend=plot_clust(pickle_p + "/" + file)
+    plt.savefig(out_fg+ "/" + filename+".png", dpi=300, bbox_inches='tight')
     
 # create filtered db
-filt_db_path="../results/reference_db/dereplicated_genomes_filtered/"
+filt_db_path=snakemake.output["filt_db"]
 old_db_p="../results/reference_db/dereplicated_genomes/"
 
 if not os.path.exists(filt_db_path): 
@@ -92,6 +91,6 @@ gen_to_del=list(to_delete["genome"])
 genome_list=os.listdir(old_db_p)
 for entry in genome_list:
     if entry not in gen_to_del:
-        shutil.copy(old_db_p+entry, filt_db_path+entry)
+        shutil.copy(old_db_p + entry, filt_db_path+ "/" + entry)
 
 

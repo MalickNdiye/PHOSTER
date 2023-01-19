@@ -1,0 +1,6 @@
+name: ortho_env
+channels:
+  - bioconda
+dependencies:
+  - prodigal
+  - orthofinder

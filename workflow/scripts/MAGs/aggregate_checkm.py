@@ -13,7 +13,7 @@ import shutil
 
 #inputs
 stats_list=list(snakemake.input["stats"])
-bins_dir=snakemake.input["bins"]
+bins_dir=snakemake.params["bins"]
 
 #outputs
 out_full_stats=snakemake.output["full_stats"] # checkm stats of all MAGs
