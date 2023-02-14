@@ -2,7 +2,7 @@ configfile: "../config/config.yaml"
 
 rule all:
     input:
-        expand("../scratch_link/inStrain/profile_{type}/{sample}{type}_profile/", sample=config["sam_names"], type="B"),
+        "../scratch_link/inStrain/compare_B/"
 
 
 #################### Main Functions #######################################
@@ -901,7 +901,8 @@ rule run_mOTUpan:
         faas="../results/pangenomes/{type}/{genus}/genes_faa",
         ref_db="../results/reference_db"
     output:
-        pan="../results/pangenomes/{type}/{genus}/{genus}_mOTUpan.tsv"
+        pan="../results/pangenomes/{type}/{genus}/{genus}_mOTUpan.tsv",
+        chemck_out=temp("../results/pangenomes/{type}/{genus}/checkm_out_tab.tsv")
     conda:
         "envs/mOTUpan.yaml"
     log:
@@ -910,15 +911,20 @@ rule run_mOTUpan:
         "logs/{type}_pangenomes/{genus}/run_mOTUpan.benchmark"
     threads: 15
     params:
-        boots=10,
-        chemck_out="../results/pangenomes/checkm_out_tab.tsv"
+        boots=100,
+        tmp1="../results/pangenomes/{type}/{genus}/tmp1.tsv",
+        tmp2="../results/pangenomes/{type}/{genus}/tmp2.tsv"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 100000,
-        runtime= "24:00:00"
+        runtime= "03:00:00"
     shell:
-        "sed -e 's/,/\t/g' {input.ref_db}/data_tables/Chdb.csv > {params.chemck_out}; "
-        "mOTUpan.py --faas {input.faas}/* -o {output.pan} --checkm {params.chemck_out} --threads {threads}"
+        """awk -F',' -v OFS=',' '{{ gsub(/.fa/,"_genes", $1); print }} ' {input.ref_db}/data_tables/Chdb.csv > {params.tmp1}; """
+        """awk -F',' -v OFS=',' '{{ gsub(/.fna/,"_genes", $1); print }} ' {params.tmp1} > {params.tmp2}; """
+        "sed -e 's/,/\t/g' {params.tmp2} > {output.chemck_out}; "
+        "rm {params.tmp1} {params.tmp2}; "
+        "mOTUpan.py --faas {input.faas}/* --boots {params.boots} -o {output.pan} --checkm {output.chemck_out} --threads {threads}"
+
 
 rule single_OGs_diversity_parse:
     input:
@@ -1208,7 +1214,7 @@ rule aggregate_instain_tabs:
         mapping_info="../results/inStrain/{type}/data_tables/all_mapping_info.tsv",
         scaffold_info="../results/inStrain/{type}/data_tables/all_scaffold_info.tsv",
     conda:
-        "envs/base_R_env"
+        "envs/base_R_env.yaml"
     params:
         us_func="scripts/useful_func.R"
     log:
@@ -1219,6 +1225,31 @@ rule aggregate_instain_tabs:
         runtime= "01:00:00"
     script:
         "scripts/bacteria_community_analysis/aggregate_instrain_tabs.R"
+
+rule do_rarefaction:
+    input:
+        IS=expand("../scratch_link/inStrain/profile_{{type}}/{sample}{{type}}_profile", sample=config["sam_names"]),
+        clust_info="../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv",
+        clust_filt="../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv",
+        genome_info="../results/inStrain/{type}/data_tables/all_genome_info.tsv",
+        gene_info="../results/inStrain/{type}/data_tables/all_gene_info.tsv",
+        stb="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb",
+        motupan=expand("../results/pangenomes/{{type}}/{genus}/{genus}_mOTUpan.tsv", genus=core_genera)
+    output:
+        rare="../results/inStrain/{type}/data_tables/snv_counts_mOTUpanCore.tsv"
+    conda:
+        "envs/rare_R.yaml"
+    params:
+        us_func="scripts/useful_func.R"
+    log:
+        "logs/instrain/{type}/do_rarefaction.log"
+    threads: 40
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 200000,
+        runtime= "01:00:00"
+    script:
+        "scripts/bacteria_community_analysis/do_rarefaction.R"
 
 rule instrain_compare:
     input:
@@ -1236,8 +1267,8 @@ rule instrain_compare:
         "logs/instrain/{type}_compare.benchmark"
     resources:
         account = "pengel_beemicrophage",
-        mem_mb = 500000,
-        runtime= "72:00:00"
+        mem_mb = 300000,
+        runtime= "3-00:00:00"
     shell:
         "(inStrain compare -i {input.IS} -o {output} -p {threads} -s {input.stb})2> {log}"
 

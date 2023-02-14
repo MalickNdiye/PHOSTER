@@ -1,0 +1,11 @@
+name: rare_R_env
+channels:
+  - conda-forge
+  - r
+  - bioconda
+dependencies:
+  - r-base
+  - r-tidyverse
+  - r-mass
+  - r-dplyr=1.1.0
+  - r-ggplot2

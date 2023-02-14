@@ -12,10 +12,11 @@ library(tidyverse)
 library(RColorBrewer)
 library(dendextend)
 library(gtools)
+library(ggbeeswarm)
 source("../useful_func.R")
 ```
 
-# Genome assembly
+# Metgenomes assembly
 
 ```{r open assembly statistics}
 asmbl_stats_p<- "../../../results/assembly/HF_assembly/all_HFassemblies_summary_tab.txt"
@@ -31,6 +32,16 @@ asmbl_stats2<- asmbl_stats %>% group_by(sample, accepted) %>%
 
 ggplot(asmbl_stats2, aes(x=reorder(sam_name,as.numeric(sam_name)),
                          y=bp,
+                         fill=factor(accepted, levels = c("yes", "no"))))+
+  geom_bar(stat = "identity", position=position_dodge())+
+  scale_fill_discrete( name="Passes Filter?")+
+  labs(x="")+
+  theme_classic()+
+  facet_grid(sam_type~., scales = "free_y")
+
+
+ggplot(asmbl_stats2, aes(x=reorder(sam_name,as.numeric(sam_name)),
+                         y=total_contigs,
                          fill=factor(accepted, levels = c("yes", "no"))))+
   geom_bar(stat = "identity", position=position_dodge())+
   scale_fill_discrete( name="Passes Filter?")+
@@ -135,6 +146,8 @@ gtdb_comp<- gtdb_QC %>% group_by(sample, genus) %>%
 ggplot(gtdb_comp, aes(x=factor(sample, levels = sam_levs), y=n, fill=factor(genus, levels = levs)))+
   geom_histogram(stat = "identity", position = "stack")+
   scale_fill_manual(values=cols, name="Genus")+
+  labs(y="# MAGs", x="")+
+  scale_y_continuous(breaks=seq(0,15, by=1))+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
@@ -144,7 +157,7 @@ ggplot(gtdb_comp, aes(x=factor(sample, levels = sam_levs), y=n_rel, fill=factor(
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 
-  ggplot(gtdb_comp, aes(x="", y=n_rel, fill=factor(genus, levels = levs)))+
+ggplot(gtdb_comp, aes(x="", y=n_rel, fill=factor(genus, levels = levs)))+
   geom_bar(stat="identity", width=1) +
   scale_fill_manual(values=cols, name="Genus")+
   theme_void()+
@@ -200,9 +213,10 @@ ggplot(gtdb_QC, aes(x=genus, y=`Strain heterogeneity`))+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
 ```
 ```{r}
+
 ggplot(gtdb_core, aes(x=`Genome size (bp)`, y= Completeness, group=genus))+
   geom_point()+
-  geom_smooth(method="lm")+
+  geom_smooth(method="lm",formula=y~log(x))+
   theme_classic()+
   facet_wrap(.~genus)
 
@@ -215,8 +229,8 @@ ggplot(gtdb_core, aes(x=Completeness, y= `Strain heterogeneity`, group=genus))+
 
 # Derepliction
 ```{r}
-clust_p<- "../../../results/reference_db/summary_data_tables/clust_filtered.tsv"
-clust_win_p<- "../../../results/reference_db/summary_data_tables/clust_filtered_winners.tsv"
+clust_p<- "../../../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv"
+clust_win_p<- "../../../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv"
 
 clust<- read.csv(clust_p, header=T, sep="\t") %>% 
   group_by(species)%>%
@@ -242,7 +256,7 @@ clust_win %>% group_by(genus) %>%
   coord_polar("y", start=0)
 ```
 ```{r, results="asis", out.width = '100%'}
-plts_p<-"../../../results/reference_db/figures/secondary_clusters_dendograms"
+plts_p<-"../../../results/reference_db_filtered/figures/secondary_clusters_dendograms"
 plots <- list.files(plts_p)
 
 for(i in plots){

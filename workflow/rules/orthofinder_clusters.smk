@@ -1,8 +1,3 @@
-################################################################################
-######################### PANGENOME ANALYISIS ##################################
-#Once our database is well curated, we can TODO
-################################################################################
-
 core_genera=["Bombilactobacillus" , "Commensalibacter", "Lactobacillus","Bifidobacterium","Gilliamella",  "Frischella", "Snodgrassella",  "Bartonella", "Apibacter"]
 
 def get_all_SecCluster(path, ignore_sing=True):
@@ -59,7 +54,7 @@ rule annotate_clusters:
 
 rule run_orthofinder:
     input:
-        faas="../results/pangenomes/{type}/{genus}/genes_faa"
+        faas="../results/pangenomes/{type}/{genus}/genes_faa",
     output:
         ortho_out=directory("../scratch_link/pangenomes/{type}/{genus}/orthofinder_output/")
     conda:
@@ -83,7 +78,8 @@ rule run_mOTUpan:
         faas="../results/pangenomes/{type}/{genus}/genes_faa",
         ref_db="../results/reference_db"
     output:
-        "../results/pangenomes/{type}/{genus}/{genus}_mOTUpan.tsv"
+        pan="../results/pangenomes/{type}/{genus}/{genus}_mOTUpan.tsv",
+        chemck_out="../results/pangenomes/{type}/{genus}/checkm_out_tab.tsv"
     conda:
         "envs/mOTUpan.yaml"
     log:
@@ -92,15 +88,45 @@ rule run_mOTUpan:
         "logs/{type}_pangenomes/{genus}/run_mOTUpan.benchmark"
     threads: 15
     params:
-        boots=10
+        boots=100,
+        tmp1="../results/pangenomes/tmp1.tsv",
+        tmp2="../results/pangenomes/tmp2.tsv",
+        tmp3="../results/pangenomes/tmp3.tsv"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 100000,
-        runtime= "24:00:00"
+        runtime= "03:00:00"
     shell:
-        "mOTUpan.py --faas {input.faas}/* -o {output} --checkm {input.ref_db}/data_tables/Chdb.csv --threads {threads}"
+        "awk -F',' -v OFS=',' '{ gsub(/.fa/,"", $1); print } ' {input.ref_db}/data_tables/Chdb.csv > {params.tmp1}; "
+        "awk -F',' -v OFS=',' '{ gsub(/.fna/,"", $1); print } ' {params.tmp1} > {params.tmp2}; "
+        "awk -F',' -v OFS=',' '{if (NR!=1) { $1=$1 '_genes'; }} 1' {params.tmp2} > {params.tmp3}; "
+        "sed -e 's/,/\t/g' {params.tmp3} > {output.chemck_out}; "
+        "rm {params.tmp1} {params.tmp2} {params.tmp3}; "
+        "mOTUpan.py --faas {input.faas}/* --boots {params.boots} -o {output.pan} --checkm {output.chemck_out} --threads {threads}"
 
-
+rule run_mOTUpan_clusters:
+    input:
+        faas="../results/pangenomes/{type}/{genus}/genes_faa",
+        clust_info="../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv",
+        chemck_out="../results/pangenomes/{type}/{genus}/checkm_out_tab.tsv"
+    output:
+        pan="../results/pangenomes/{type}/{genus}/clusters_pangenome/"
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/{type}_pangenomes/{genus}/run_clust_mOTUpan.log"
+    benchmark:
+        "logs/{type}_pangenomes/{genus}/run_clust_mOTUpan.benchmark"
+    threads: 8
+    params:
+        genus=lambda wildcards: wildcards.genus
+        boots=100
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "04:00:00"
+    script:
+        "scripts/bacteria_pangenome/motupan_clst.py"
 
 rule single_OGs_diversity_parse:
     input:
@@ -123,11 +149,10 @@ rule single_OGs_diversity_parse:
     script:
         "scripts/bacteria_pangenome/Find_genus_singleCopy_OGs.py"
 
-
 rule single_OGs_diversity_aggregate:
     input:
         genus_OGs=expand("../results/pangenomes/{{type}}/{genus}/{genus}_single_copy_OGs.tsv", genus=core_genera),
-        isolates_OGs=expand("../results/pangenomes/{{type}}/{genus}/isolates_{genus}_single_copy_OGs.tsv", genus=core_genera),
+        isolates_OGs=expand("../results/pangenomes/{{type}}/{genus}/isolates_{genus}_single_copy_OGs.tsv", genus=core_genera)
     output:
         all_genus_OGs="../results/pangenomes/{type}/all_single_copy_OGs.tsv",
         all_isolates_OGs="../results/pangenomes/{type}/all_isolates_single_copy_OGs.tsv"
@@ -139,7 +164,7 @@ rule single_OGs_diversity_aggregate:
         mem_mb=5000,
         runtime="00:30:00"
     shell:
-        "echo -e 'Orthogroup\tgenome\tgene\tBin_Id\tsecondary_cluster\tspecies	genus\tsecondary_cluster_n' > {output.all_genus_OGs}; "
-        "echo -e 'Orthogroup\tgenome\tgene\tBin_Id\tsecondary_cluster\tspecies	genus\tsecondary_cluster_n' > {output.all_isolates_OGs}; "
+        "echo -e 'Orthogroup\tgenome\tgene\tBin_Id\tsecondary_cluster\tspecies\tgenus\tsecondary_cluster_n' > {output.all_genus_OGs}; "
+        "echo -e 'Orthogroup\tgenome\tgene\tBin_Id\tsecondary_cluster\tspecies\tgenus\tsecondary_cluster_n' > {output.all_isolates_OGs}; "
         "awk 'FNR>1' {input.genus_OGs} >> {output.all_genus_OGs}; "
         "awk 'FNR>1' {input.isolates_OGs} >> {output.all_isolates_OGs}"
