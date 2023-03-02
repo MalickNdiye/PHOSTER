@@ -222,7 +222,7 @@ get_species_cols<- function(species){
                 "Snodgrassella"="Oranges",
                 "Gilliamella" ="PiYG",
                 "Bartonella"="PuRd",
-                "Friscella"="wheat",
+                "Frischella"="wheat",
                 "Bombella"="OrRd",
                 "Commensalibacter"="tomato")
 
@@ -243,4 +243,27 @@ get_species_cols<- function(species){
   }
 
   return(sp_col_list)
+}
+
+
+get_sp_abbreviation<- function(id){
+  id_split<- unlist(strsplit(id, split=" "))
+  id_split<- id_split[!(id_split=="" | id_split==" ")]
+  n<- length(id_split)
+  
+  genus<- id_split[1]
+  rest_list<- id_split[2:n]
+  rest<- paste(rest_list, collapse=" ")
+  
+  
+  g<- paste(unlist(strsplit(genus, split=""))[1], ".", sep="")
+  
+  lab<- paste(g, rest, sep=" ")
+  
+  return(lab)
+}
+
+Get_labels_linneus<- function(id_list){
+  labels_list<- unlist(lapply(id_list, get_sp_abbreviation))
+  return(labels_list)
 }

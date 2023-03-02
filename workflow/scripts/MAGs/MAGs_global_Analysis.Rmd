@@ -10,7 +10,8 @@ knitr::opts_chunk$set(echo = TRUE)
 library(data.table)
 library(tidyverse)
 library(RColorBrewer)
-library(dendextend)
+library(ComplexHeatmap)
+library(viridis)
 library(gtools)
 library(ggbeeswarm)
 source("../useful_func.R")
@@ -56,7 +57,7 @@ ggplot(asmbl_stats2, aes(x=reorder(sam_name,as.numeric(sam_name)),
 checkm_alls_p<- "../../../results/MAG_binning/checkm_QC/summary/all_MAGs_stats.tsv"
 checkm_filt_p<- "../../../results/MAG_binning/checkm_QC/summary/filtered_MAGs_stats.tsv"
 
-checkm_alls<- read.csv(checkm_alls_p, header=T, sep="\t", check.names = F)
+checkm_alls<- read.csv(checkm_alls_p, header=T, sep="\t", check.names = F) %>% filter(Contamination<10, Completeness>75)
 checkm_filt<- read.csv(checkm_filt_p, header=T, sep="\t", check.names = F)
 
 filt_mags<- checkm_filt$`Bin Id`
@@ -74,13 +75,13 @@ checkm_alls2<- checkm_alls %>%
 
 sam_levs= unique(paste(sort(as.numeric(gsub("B", "", checkm_alls2$sample))), "B", sep=""))
 
-ggplot(checkm_alls2,aes(x=factor(sample, levels = sam_levs), y=value, 
+MAGs_filtering_plt<- ggplot(checkm_alls2,aes(x=factor(sample, levels = sam_levs), y=value, 
                           fill=factor(variable, levels = c("tot_count", "count_good")))) +
   geom_bar(stat="identity", position = position_dodge())+
-  scale_fill_discrete(name = "", labels = c("Total MAGs", "Filtered MAGs"))+
-  labs(x="", y= "number of MAGs")+
+  scale_fill_manual(name = "", labels = c("Total MAGs", "Filtered MAGs"), values=c("lightskyblue3", "lightpink"))+
+  labs(x="", y= "# MAGs")+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)); MAGs_filtering_plt
 ```
 
 ```{r MAGs retained  vs. Discarded}
@@ -143,13 +144,13 @@ gtdb_comp<- gtdb_QC %>% group_by(sample, genus) %>%
   dplyr::mutate(n_rel=n/sum(n))
 
 
-ggplot(gtdb_comp, aes(x=factor(sample, levels = sam_levs), y=n, fill=factor(genus, levels = levs)))+
+recovered_MAGs_plt<- ggplot(gtdb_comp, aes(x=factor(sample, levels = sam_levs), y=n, fill=factor(genus, levels = levs)))+
   geom_histogram(stat = "identity", position = "stack")+
   scale_fill_manual(values=cols, name="Genus")+
   labs(y="# MAGs", x="")+
   scale_y_continuous(breaks=seq(0,15, by=1))+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)); recovered_MAGs_plt
 
 ggplot(gtdb_comp, aes(x=factor(sample, levels = sam_levs), y=n_rel, fill=factor(genus, levels = levs)))+
   geom_histogram(stat = "identity", position = "stack")+
@@ -183,34 +184,34 @@ avg_size<- c("Bombilactobacillus"=1.82e6,
 
 gtdb_QC$avg_size<- avg_size[gtdb_QC$genus]
 
-ggplot(gtdb_QC, aes(x=genus, y=`Genome size (bp)`))+
+mag_genome_size_plt<- ggplot(gtdb_QC, aes(x=genus, y=`Genome size (bp)`))+
   geom_boxplot(outlier.shape = NA)+
   geom_point(position = position_jitter(0.2))+
   geom_point(aes(y=avg_size), shape=95, size=12, col="red")+
   geom_text(aes(genus, 0, label = lab),vjust = 1, check_overlap = TRUE)+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1));mag_genome_size_plt
 
-ggplot(gtdb_QC, aes(x=genus, y=Completeness))+
+mag_completeness_plt<- ggplot(gtdb_QC, aes(x=genus, y=Completeness))+
   geom_boxplot(outlier.shape = NA)+
   geom_point(position = position_jitter(0.2))+
   geom_text(aes(genus, 0, label = lab),vjust = 1, check_overlap = TRUE)+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1));mag_completeness_plt
 
-ggplot(gtdb_QC, aes(x=genus, y=Contamination))+
+mag_contamination_plt<- ggplot(gtdb_QC, aes(x=genus, y=Contamination))+
   geom_boxplot(outlier.shape = NA)+
   geom_point(position = position_jitter(0.2))+
   geom_text(aes(genus, -1, label = lab),vjust = 1, check_overlap = TRUE)+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1));mag_contamination_plt
 
-ggplot(gtdb_QC, aes(x=genus, y=`Strain heterogeneity`))+
+mag_SH_plt<- ggplot(gtdb_QC, aes(x=genus, y=`Strain heterogeneity`))+
   geom_boxplot(outlier.shape = NA)+
   geom_point(position = position_jitter(0.2))+
   geom_text(aes(genus, -1, label = lab),vjust = 1, check_overlap = TRUE)+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1));mag_SH_plt
 ```
 ```{r}
 
@@ -242,19 +243,211 @@ clust_win<- read.csv(clust_win_p, header=T, sep="\t") %>%
   dplyr::mutate(genus=unlist(strsplit(species, split=" "))[1])
 ```
 
+
+```{r}
+  
+genome_info<-  read.csv("../../../results/inStrain/B/data_tables/all_genome_info.tsv", header=T, sep="\t") %>% 
+  mutate("id"= get_mtdata(mtdata_path="../../../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv",
+                          "id", corr="genome", genome))%>%
+  relocate(species, .after = genome) %>%
+  relocate(genus, .after = species) %>%
+  relocate(id, .after = genus)
+
+genome_info_filt <- genome_info %>% filter(coverage_median>=5 & breadth >= 0.5) %>%
+  group_by(sample) %>%
+  mutate("actual_length"=length*breadth,
+         norm_reads=filtered_read_pair_count/actual_length,
+         "frequency"=norm_reads/sum(norm_reads)) %>%
+  relocate(frequency, .before = coverage) %>%
+  group_by(sample, genus) %>%
+  mutate(freq_inG=norm_reads/sum(norm_reads)) 
+```
+
+```{r}
+ani_tab_p<- "../../../results/reference_db/data_tables/Ndb.csv"
+ani_tab<- read.csv(ani_tab_p, header=T) %>%
+  mutate("genus_reference"= get_mtdata(mtdata_path=clust_p, "genus", corr="genome", reference),
+         "genus_query"= get_mtdata(mtdata_path=clust_p, "genus", corr="genome", querry),
+         "id_reference"=get_mtdata(mtdata_path=clust_p, "id", corr="genome", reference),
+         "id_query"=get_mtdata(mtdata_path=clust_p, "id", corr="genome", querry),
+         "chosen"=get_mtdata(mtdata_path=clust_p, "ref", corr="genome", reference),
+         "secondary_cluster"=get_mtdata(mtdata_path=clust_p, "secondary_cluster", corr="genome", reference),
+         "secondary_cluster_n"=get_mtdata(mtdata_path=clust_win_p, "secondary_cluster_n", corr="secondary_cluster", secondary_cluster),
+         origin=ifelse(grepl("MAG", reference), "MAG", "Isolate")) %>%
+  filter(genus_reference %in% get_core(), genus_query %in% get_core(),
+         id_query %in% genome_info_filt$id, id_reference %in% genome_info_filt$id)
+
+
+ani_pivot<- ani_tab%>%
+  arrange(genus_reference, primary_cluster, secondary_cluster)%>%
+  pivot_wider(names_from = querry, values_from = ani, values_fill = 0) 
+  
+
+ani_matrix<- ani_tab%>%
+  arrange(genus_reference, primary_cluster, secondary_cluster)%>%
+  pivot_wider(id_cols=reference, names_from = querry, values_from = ani, values_fill = 0) %>%
+  column_to_rownames("reference") %>%
+  as.matrix()
+ani_matrix <- ani_matrix[, rownames(ani_matrix)]
+
+
+```
+
+```{r plot heatmap function}
+fancy_heatmap<- function(genus=""){
+  # create matrix
+  if(genus==""){
+    ani_pivot<- ani_tab%>%
+      arrange(genus_reference, primary_cluster, id_reference)%>%
+      pivot_wider(names_from = querry, values_from = ani, values_fill = 0) 
+    
+    ani_matrix<- ani_tab%>% 
+      arrange(genus_reference, primary_cluster, id_reference)%>%
+      pivot_wider(id_cols=reference, names_from = querry, values_from = ani, values_fill = 0) %>%
+      column_to_rownames("reference") %>%
+      as.matrix()
+  }else{
+      ani_pivot<- ani_tab%>% filter(genus_reference==genus, genus_query==genus) %>%
+      arrange(genus_reference, primary_cluster, id_reference)%>%
+      pivot_wider(names_from = querry, values_from = ani, values_fill = 0) 
+    
+      ani_matrix<- ani_tab%>%filter(genus_reference==genus, genus_query==genus) %>%
+      arrange(genus_reference, primary_cluster, id_reference)%>%
+      pivot_wider(id_cols=reference, names_from = querry, values_from = ani, values_fill = 0) %>%
+      column_to_rownames("reference") %>%
+      as.matrix()
+    }
+  
+  ani_matrix <- ani_matrix[, rownames(ani_matrix)]*100
+  
+  #chose color scheme for heamap
+  col_vec = c("black",magma(5, begin = 0.2, end = 1, direction = 1))
+  col_fun<- colorRamp2(c(0.79, 0.8,0.85,0.9,0.95, 1)*100, col_vec)
+  
+  # define heatmap annotation
+  
+  ## Genus
+  genus_ann<- setNames(ani_pivot$reference, ani_pivot$genus_reference)
+  genus_ann<- genus_ann[!duplicated(genus_ann)]
+  genus_pal<- get_core_cols()[names(genus_ann)]
+  genus_ann<- names(genus_ann)
+  
+  ## Id
+  id_ann<- setNames(ani_pivot$reference, ani_pivot$id_reference)
+  id_ann<- id_ann[!duplicated(id_ann)]
+  id_pal<- get_species_cols(names(id_ann))[names(id_ann)]
+  id_ann<- names(id_ann)
+  id_ann<- Get_labels_linneus(id_ann)
+  names(id_pal)<- Get_labels_linneus(names(id_pal))
+  
+  ## isolate vs MAG
+  org_pal<- c("MAG"="lightpink1", "Isolate"= "steelblue3")
+  org_ann<- setNames(ani_pivot$reference, ani_pivot$origin)
+  org_ann<- org_ann[!duplicated(org_ann)]
+  org_pal<- org_pal[names(org_ann)]
+  org_ann<- names(org_ann)
+  
+  #chosen isolates
+  ch_ann<- setNames(ani_pivot$reference, ani_pivot$chosen)
+  ch_ann<- ch_ann[!duplicated(ch_ann)]
+  ch_ann<- names(ch_ann)
+  
+  # get row lables
+  get_rw_labs<- function(ids_f, lev){
+    id_lev<- ids_f[ids_f==lev]
+    n<- length(id_lev)
+    lab_pos<- ceiling(n/2)
+    
+    after_pos<- length((lab_pos+1):n)
+    
+    if((n/2)>0.5){
+      lab_vec<- c(rep("", lab_pos-1), lev, rep("", after_pos))
+    }else{
+      lab_vec<- lev
+    }
+    
+    
+    return(lab_vec)
+  }
+
+  id_labs<- unlist(lapply(unique(id_ann), function(x) get_rw_labs(id_ann, x)))
+  
+  # pull togheter annotations
+  if(genus==""){
+    ha<- HeatmapAnnotation("Genus" = genus_ann,
+                       "Cluster" = id_ann,
+                       "Genome Type"= anno_simple(org_ann, col=org_pal, border = TRUE,
+                                                  pch=ch_ann, pt_gp = gpar(col = "black")),
+                       col= list("Genus"= genus_pal, "Cluster"= id_pal,
+                                 "Genome Type"=org_pal),
+                       border = TRUE
+                       )
+  }else{
+    ha<- HeatmapAnnotation("Genome Type"= anno_simple(org_ann, col=org_pal, border = TRUE,
+                                                  gp = gpar(col = "black"),
+                                                  pch=ch_ann, pt_gp = gpar(col = "black", size=7)),
+                       col= list("Genome Type"=org_pal),
+                       border = TRUE)
+    
+    row_ha<- rowAnnotation(foo=anno_text(id_labs, rot = 0, just="left",
+                                         gp = gpar(fontsize = 10)),
+                           "Cluster" = id_ann,
+                           col= list("Cluster"= id_pal),
+                           show_legend=F,
+                           border = T)
+  }
+  
+  #splitting_column
+  split<- setNames(ani_pivot$reference, ani_pivot$id_reference)
+  split<- split[!duplicated(split)]
+  split<-names(split)
+  
+  f_split<- factor(split, levels = unique(split))
+  split <- as.numeric(f_split)
+
+  #plot heatmap
+  ht<- Heatmap(ani_matrix, column_title=genus,
+               cluster_rows = F, cluster_columns=F,
+               top_annotation = ha,
+               left_annotation = row_ha,
+               col=col_fun,
+               show_column_names = F,
+               name = "% ANI\n",
+               show_row_names = F,
+               column_split=split,
+               row_split=split,
+               row_title = NULL)
+  
+  lgd_org = Legend(title = "Genome Type", at=1:2, legend_gp =gpar(fill = c("steelblue3", "lightpink1")),
+    labels = c("Isolate", "MAG"))
+
+  return(draw(ht, annotation_legend_list = list(lgd_org)))
+}
+
+fancy_heatmap(genus="Bombilactobacillus")
+fancy_heatmap(genus="Bifidobacterium")
+fancy_heatmap(genus="Gilliamella")
+fancy_heatmap(genus="Snodgrassella")
+fancy_heatmap(genus="Lactobacillus")
+fancy_heatmap(genus="Bartonella")
+```
+
+
 ```{r}
 levs<- get_gen_col_abs(clust_win$genus)[[1]]
 cols<-get_gen_col_abs(clust_win$genus)[[2]]
 
-clust_win %>% group_by(genus) %>%
+ref_db_comp_plt<- clust_win %>% group_by(genus) %>%
   dplyr::summarise(genus_n=length(genus)) %>%
   ggplot(aes(x="", y=genus_n, fill=factor(genus, levels = levs)))+
   geom_bar(stat="identity", width=1) +
-  ggtitle("reference database: species composition")+
+  ggtitle("reference database composition")+
+  labs(subtitle = paste("number of genomes:" ,nrow(clust_win)))+
   scale_fill_manual(values=cols, name="Genus")+
   theme_void()+
-  coord_polar("y", start=0)
+  coord_polar("y", start=0); ref_db_comp_plt
 ```
+
 ```{r, results="asis", out.width = '100%'}
 plts_p<-"../../../results/reference_db_filtered/figures/secondary_clusters_dendograms"
 plots <- list.files(plts_p)
@@ -280,12 +473,36 @@ mapdata<- read.csv(mapdata_p, header=T, sep="\t") %>%
 ```
 
 ```{r refstats analysis}
-ggplot(mapdata, aes(x=factor(sample, levels=mixedsort(sample)),y=perc_map))+
+mapped_toRef_plt<- ggplot(mapdata, aes(x=factor(sample, levels=mixedsort(sample)),y=perc_map))+
   geom_bar(stat="identity", position = position_dodge())+
   labs(x="", y="% mapped")+
   scale_y_continuous(breaks = seq(0, 110, by = 10))+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)); mapped_toRef_plt
+```
+
+
+```{r}
+library(svglite)
+fig_dir<- "../../../Figures/ReferenceDatabase"
+dir.create(fig_dir, showWarnings = FALSE)
+
+ggsave(paste(fig_dir, "/mappedToRef.svg", sep=""),  mapped_toRef_plt, units ="mm", width = 297, height = 210, dpi=300)
+
+ggsave(paste(fig_dir, "/Ref_DB_composition.svg", sep=""),  ref_db_comp_plt, units ="mm", width = 297, height = 210, dpi=300)
+
+ggsave(paste(fig_dir, "/MAGs_filtering.svg", sep=""),  MAGs_filtering_plt, units ="mm", width = 297, height = 210, dpi=300)
+
+
+ggsave(paste(fig_dir, "/MAGs_GenomeSize.svg", sep=""),  mag_genome_size_plt, units ="mm", width = 297, height = 210, dpi=300)
+ggsave(paste(fig_dir, "/MAGs_completeness.svg", sep=""),  mag_completeness_plt, units ="mm", width = 297, height = 210, dpi=300)
+ggsave(paste(fig_dir, "/MAGs_contamination.svg", sep=""),  mag_contamination_plt, units ="mm", width = 297, height = 210, dpi=300)
+ggsave(paste(fig_dir, "/MAGs_StrainHeterogeneity.svg", sep=""),  mag_SH_plt, units ="mm", width = 297, height = 210, dpi=300)
+
+
+ggsave(paste(fig_dir, "/recovered_MAGs.svg", sep=""),  recovered_MAGs_plt, units ="mm", width = 297, height = 210, dpi=300)
+
+dev.off()
 ```
 
 

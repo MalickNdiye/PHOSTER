@@ -1,13 +1,22 @@
 configfile: "../config/config.yaml"
+import os
+import pandas as pd
+import numpy as np
+
+def get_genomes(path):
+    df=pd.read_csv(path, delimiter="\t")
+    genomes=np.array(df.iloc[:,1])
+    genomes=np.unique(genomes)
+
+    return(genomes)
 
 rule all:
     input:
-        "../scratch_link/inStrain/compare_B/"
-
+        expand("../scratch_link/inStrain/compare_B/compare_{genome}", genome=get_genomes("../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb"))
 
 #################### Main Functions #######################################
-import os
-import pandas as pd
+
+
 def get_direction_r1(wildcards) :
 #This  function returns a list of R1 reads when the same sample was sequenced on multiple lanes
     samname=wildcards.sample
@@ -73,29 +82,29 @@ core_genera=["Bombilactobacillus" , "Commensalibacter", "Lactobacillus","Bifidob
 ################################################################################
 ################################################################################
 
-rule build_Krakern2:
-    input:
-        GB_VC= "../data/reference_assemblies/VCs_kraken/GB_ViralClusters_kraken.fna",
-        Amel= "../data/reference_assemblies/A_mellifera/GCF_003254395.2_Amel_HAv3.1_genomic.fna"
-    output:
-        directory("resources/databases/220131_costum_kraken2db")
-    threads: 42
-    conda:
-        "envs/Kraken2.yaml"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 500000,
-        runtime= "06:00:00",
-        disk_mb= 1000000
-    log:
-        "logs/data_validation/kraken2/database_kraken2.log"
-    shell:
-        "kraken2-build --download-taxonomy --db {output}; "
-        "kraken2-build --download-library bacteria --db {output}; "
-        "kraken2-build --download-library viral --db {output}; "
-        "kraken2-build --download-library human --db {output}; "
-        "kraken2-build --add-to-library {input.GB_VC}  --db {output}; "
-        "kraken2-build --add-to-library {input.Amel} --db {output}"
+# rule build_Krakern2:
+#     input:
+#         GB_VC= "../data/reference_assemblies/VCs_kraken/GB_ViralClusters_kraken.fna",
+#         Amel= "../data/reference_assemblies/A_mellifera/GCF_003254395.2_Amel_HAv3.1_genomic.fna"
+#     output:
+#         directory("resources/databases/220131_costum_kraken2db")
+#     threads: 42
+#     conda:
+#         "envs/Kraken2.yaml"
+#     resources:
+#         account = "pengel_beemicrophage",
+#         mem_mb = 500000,
+#         runtime= "06:00:00",
+#         disk_mb= 1000000
+#     log:
+#         "logs/data_validation/kraken2/database_kraken2.log"
+#     shell:
+#         "kraken2-build --download-taxonomy --db {output}; "
+#         "kraken2-build --download-library bacteria --db {output}; "
+#         "kraken2-build --download-library viral --db {output}; "
+#         "kraken2-build --download-library human --db {output}; "
+#         "kraken2-build --add-to-library {input.GB_VC}  --db {output}; "
+#         "kraken2-build --add-to-library {input.Amel} --db {output}"
 
 ################################################################################
 ########################### DATA VALIDATION ####################################
@@ -133,19 +142,19 @@ rule run_Krakern2:
     input:
         R1="../scratch_link/concat_raw_reads/{sample}_R1_concat.fastq.gz",
         R2="../scratch_link/concat_raw_reads/{sample}_R2_concat.fastq.gz",
-        db="resources/default_DBs/220131_costum_kraken2db"
+        db="resources/default_DBs/230228_costum_kraken2db_new"
     output:
         tab=temp("../results/data_validation/kraken2_output/{sample}_kraken2_report.kraken"),
         rep=temp("../results/data_validation/kraken2_output/Reports/{sample}_kraken2_report")
     conda:
         "envs/Kraken2.yaml"
-    threads: 24
+    threads: 8
     log:
         "logs/data_validation/kraken2/run/{sample}_kraken2.log"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 100000,
-        runtime= "03:00:00"
+        runtime= "01:00:00"
     shell:
         "kraken2 --use-names --threads {threads} \
          --db {input.db} \
@@ -1049,7 +1058,7 @@ rule generate_bam:
     wildcard_constraints:
         sample="\d+"
     conda:
-        "envs/metapop_env.yaml"
+        "envs/map_env.yaml"
     threads: 2
     log:
         "logs/mapping/{sample}{type}_prepare_metapop.log"
@@ -1064,6 +1073,8 @@ rule generate_bam:
         "lib=${{s%.*}}; "
         "count=$(samtools view -c {output.bam}); "
         'echo -e "${{lib}}\t${{count}}" >> {output.cf}'
+
+##################### Mapping QC ###############################################
 
 rule mappings_stats:
     input:
@@ -1105,22 +1116,60 @@ rule merge_mapping_stats:
     script:
         "scripts/mapping/format_flagstats.R"
 
-rule sort_bam_QC:
+rule sort_bam:
     input:
         bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.bam"
     output:
-        "../scratch_link/mapping/sorted_bams/{sample}{type}_mapping_sorted.bam"
+        sorted_bam="../scratch_link/mapping/sorted_bams/{sample}{type}_mapping_sorted.bam",
+        bai="../scratch_link/mapping/sorted_bams/{sample}{type}_mapping_sorted.bam.bai"
     log:
         "logs/mapping/QC/sort_bam_{sample}{type}.log"
     conda:
-        "envs/metapop_env.yaml"
+        "envs/map_env.yaml"
     threads: 5
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 8000,
         runtime= "01:30:00"
     shell:
-        "samtools sort {input.bam} -@ {threads} -o {output}"
+        "samtools sort {input.bam} -@ {threads} -o {output.sorted_bam}; "
+        "samtools index {output.sorted_bam} {output.bai} -@ {threads}"
+
+rule multireads_count:
+    input:
+        sorted_bam="../scratch_link/mapping/sorted_bams/{sample}{type}_mapping_sorted.bam"
+    output:
+        multireads_count="../results/mapping/multireads/{sample}{type}_multireads_count.tsv"
+    threads: 1
+    log:
+        "logs/mapping/multireads/{sample}{type}_multireads.log"
+    benchmark:
+        "logs/mapping/multireads/{sample}{type}_multireads.benchmark"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 50000,
+        runtime= "03:00:00"
+    script:
+        "scripts/mapping/multireads.py"
+
+
+rule aggregate_multireads:
+    input:
+        multireads_count=expand("../results/mapping/multireads/{sample}{{type}}_multireads_count.tsv", sample=config["sam_names"])
+    output:
+        all_multireads="../results/mapping/multireads/all_{type}_multireads_count.tsv"
+    threads: 1
+    log:
+        "logs/mapping/multireads/all_{type}_multireads.log"
+    benchmark:
+        "logs/mapping/multireads/all_{type}_multireads.benchmark"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 5000,
+        runtime= "00:15:00"
+    shell:
+        "echo -e 'scaffold\tmultireads\tavg_mapQ\tsample' > {output.all_multireads}; "
+        "tail -n +2 {input.multireads_count} >> {output.all_multireads}"
 
 rule prepare_bamQC:
     input:
@@ -1187,7 +1236,8 @@ rule instrain_profile:
         genL="../results/inStrain/all_bacterial_RefGenomes_genes.fna",
         stb="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb",
     output:
-        directory("../scratch_link/inStrain/profile_{type}/{sample}{type}_profile/")
+        dir=directory("../scratch_link/inStrain/profile_{type}/{sample}{type}_profile/"),
+        sorted_bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.sorted.bam"
     threads: 32
     conda:
         "envs/inStrain.yaml"
@@ -1198,11 +1248,12 @@ rule instrain_profile:
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 500000,
-        runtime= "72:00:00"
+        runtime= "10:00:00"
     params:
         min_ANI=0.92
     shell:
-        "(inStrain profile {input.bam} {input.ref} -o {output} --min_read_ani {params.min_ANI} -p {threads} -g {input.genL} -s {input.stb})2> {log}"
+        "(inStrain profile {input.bam} {input.ref} -o {output.dir} --min_read_ani {params.min_ANI} -p {threads} -g {input.genL} -s {input.stb})2> {log}"
+
 
 rule aggregate_instain_tabs:
     input:
@@ -1251,26 +1302,31 @@ rule do_rarefaction:
     script:
         "scripts/bacteria_community_analysis/do_rarefaction.R"
 
+
+
+
 rule instrain_compare:
     input:
         IS=expand("../scratch_link/inStrain/profile_{{type}}/{sample}{{type}}_profile/", sample=config["sam_names"]),
         ref="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.fasta",
         stb="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb"
     output:
-        directory("../scratch_link/inStrain/compare_{type}/")
-    threads: 46
+        directory("../scratch_link/inStrain/compare_{type}/compare_{genome}")
+    threads: 12
     conda:
         "envs/inStrain.yaml"
     log:
-        "logs/instrain/{type}_compare.log"
+        "logs/instrain/{type}_compare_{genome}.log"
     benchmark:
-        "logs/instrain/{type}_compare.benchmark"
+        "logs/instrain/{type}_compare_{genome}.benchmark"
     resources:
         account = "pengel_beemicrophage",
-        mem_mb = 300000,
-        runtime= "3-00:00:00"
+        mem_mb = 200000,
+        runtime= "1-00:00:00"
+    params:
+        genome=lambda wildcards: wildcards.genome
     shell:
-        "(inStrain compare -i {input.IS} -o {output} -p {threads} -s {input.stb})2> {log}"
+        "inStrain compare -i {input.IS} -o {output} -p {threads} -s {input.stb} --database_mode --genome {params.genome}"
 
 
 ################################################################################

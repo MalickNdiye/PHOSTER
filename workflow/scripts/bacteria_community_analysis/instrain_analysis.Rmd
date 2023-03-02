@@ -22,6 +22,10 @@ library(pals)
 fig_p<- "../../../Figures/"
 ```
 
+```{r}
+clust<- read.csv("../../../results/reference_db/data_tables/Cdb.csv", header=T, sep=",") %>% filter(grepl("MAG", genome))
+```
+
 
 ```{r get clustering data}
 clust_p<- "../../../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv"
@@ -48,12 +52,14 @@ mapping_info_m<- melt(mapping_info) %>% filter(variable %in% id_vars) %>% group_
 
 unique(mapping_info_m$variable)
 
-mapping_plt<- ggplot(mapping_info_m, aes(x=factor(sample, levels = mixedsort(unique(sample))), y=value, fill=factor(variable, levels = id_vars)))+
+mapping_filtering_plt<- ggplot(mapping_info_m, aes(x=factor(sample, levels = mixedsort(unique(sample))), y=value, fill=factor(variable, levels = id_vars)))+
   geom_bar(stat="identity", position = position_dodge())+
   scale_fill_manual(values=cols)+
+  labs(fill="", x="", y="# reads")+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "top"); mapping_plt
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1), legend.position = "top"); mapping_filtering_plt
 ```
+
 # Community composition
 ```{r}
   
@@ -66,10 +72,12 @@ genome_info<-  read.csv("../../../results/inStrain/B/data_tables/all_genome_info
 
 genome_info_filt <- genome_info %>% filter(coverage_median>=5 & breadth >= 0.5) %>%
   group_by(sample) %>%
-  mutate("frequency"=filtered_read_pair_count/sum(filtered_read_pair_count)) %>%
+  mutate("actual_length"=length*breadth,
+         norm_reads=filtered_read_pair_count/actual_length,
+         "frequency"=norm_reads/sum(norm_reads)) %>%
   relocate(frequency, .before = coverage) %>%
   group_by(sample, genus) %>%
-  mutate(freq_inG=coverage/sum(coverage)) 
+  mutate(freq_inG=norm_reads/sum(norm_reads)) 
 ```
 
 ## Genera relative proportions
@@ -86,6 +94,7 @@ genera_relab_plt<- genome_info_filt %>% mutate(tax_plt=ifelse(frequency>th, genu
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)); genera_relab_plt
 ```
+
 ## putative species relative proportion
 ```{r}
 to_remove<- c("Commensalibacter", "Frischella", "Bombella")
@@ -116,7 +125,260 @@ put_sp_prop_plt<- ggplot(genome_plt, aes(x=factor(sample, levels=mixedsort(uniqu
         legend.text = element_text(size=10, 
                                      face="bold")); put_sp_prop_plt
 ```
+# Species-level Diversity
+```{r}
+library(vegan)
+library(BiodiversityR)
 
+mapping_info_norm<- mapping_info %>% 
+  dplyr::select(sample, filtered_pairs) %>% 
+  group_by(sample) %>%
+  mutate(norm_factor=max(.$filtered_pairs)/filtered_pairs) %>%
+  dplyr::select(!filtered_pairs)
+  
+
+
+genome_info_filt_norm<- genome_info_filt %>% left_join(., mapping_info_norm, by="sample") %>%
+  mutate(norm_reads_ab=norm_reads*norm_factor) %>%
+  relocate(norm_reads_ab, .after=filtered_read_pair_count)
+
+div_matrix<- genome_info_filt_norm %>% 
+  pivot_wider(id_cols = sample, names_from = id,  values_from=norm_reads, values_fill=0) %>%
+  column_to_rownames(var="sample")
+
+div_mtdata<- genome_info_filt_norm %>% 
+  mutate(sam_name=as.numeric(gsub("B", "", sample)),
+    origin=ifelse(sam_name<56, "Switzerland", "Japan"),
+         colony=factor(ifelse(sam_name<23, 1,
+                       ifelse(sam_name %in% 23:55, 2,
+                              ifelse(sam_name %in% 56:67,3,4))))) %>%
+  ungroup() %>% 
+  dplyr::select(id,sample, origin, colony, norm_reads) %>%
+  pivot_wider(names_from = id,  values_from=norm_reads, values_fill=0) 
+```
+
+#Alpha diversity
+```{r}
+library(ggpubr)
+
+# species richness
+sp_rich<-specnumber(div_matrix)
+sp_rich_df<- as.data.frame(sp_rich) %>% rownames_to_column(var = "sample")
+
+# Shannon's diversity
+H<- diversity(div_matrix)
+H_df<- as.data.frame(H) %>% rownames_to_column(var = "sample")
+
+alpha_df<- full_join(sp_rich_df, H_df, by="sample")
+alpha_df<- div_mtdata %>%
+  dplyr::select(origin, colony, sample) %>%
+  right_join(., alpha_df, by="sample") 
+
+# plots
+ggplot(alpha_df, aes(x=origin, y=H, fill=colony))+
+  geom_boxplot()+
+  stat_compare_means()+
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, size =10, face="bold"))
+
+ggplot(alpha_df, aes(x=origin, y=H))+
+  geom_boxplot()+
+  stat_compare_means()+
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, size =10, face="bold"))
+
+ggplot(alpha_df, aes(x=origin, y=sp_rich, fill=colony))+
+  geom_boxplot()+
+  stat_compare_means()+
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, size =10, face="bold"))
+
+ggplot(alpha_df, aes(x=origin, y=sp_rich))+
+  geom_boxplot()+
+  stat_compare_means(method = "t.test", ref.group = ".all.")+
+  theme(axis.text.x = element_text(angle = 0, vjust = 0.5, size =10, face="bold"))
+```
+
+# beta diverisity
+```{r}
+plot_fancy_NMDS<- function(target_genus=genome_info_filt_norm$genus, plots=F){
+  
+  # set title
+  if(all(genome_info_filt_norm$genus==target_genus)){
+    plt_title="Whole community"
+  } else if(all(get_core()==target_genus)){
+    plt_title="Core Community"
+  } else{
+    plt_title=target_genus
+  }
+  
+  # forma diversity matrix
+  div_matrix<- genome_info_filt_norm %>% 
+    filter(genus %in% target_genus) %>%
+    arrange(sample) %>%
+    pivot_wider(id_cols = sample, names_from = id,  values_from=norm_reads, values_fill=0) %>%
+    column_to_rownames(var="sample") %>%
+    decostand(., method = "total")
+
+  div_mtdata<- genome_info_filt_norm %>% 
+    filter(genus %in% target_genus) %>%
+    arrange(sample) %>%
+    mutate(sam_name=as.numeric(gsub("B", "", sample)),
+    origin=ifelse(sam_name<56, "Switzerland", "Japan"),
+         colony=factor(ifelse(sam_name<23, 1,
+                       ifelse(sam_name %in% 23:55, 2,
+                              ifelse(sam_name %in% 56:67,3,4))))) %>% 
+    ungroup() %>% 
+    dplyr::select(id,sample, origin, colony, norm_reads) %>%
+    pivot_wider(names_from = id,  values_from=norm_reads, values_fill=0)
+  
+  #perform NMDS and check goodness of fit
+  bact_NMDS <- metaMDS(div_matrix, distance = "bray")
+  
+  # Format NMDS data
+  bact_NMDS_df <- scores(bact_NMDS, display = "site") %>% 
+    as.data.frame() %>% 
+    rownames_to_column(var="sample") %>%
+    dplyr::filter(! sample=="37B")  %>% 
+    mutate(sam_name=as.numeric(gsub("B", "", sample)),
+      origin=ifelse(sam_name<56, "Switzerland", "Japan"),
+           colony=factor(ifelse(sam_name<23, 1,
+                         ifelse(sam_name %in% 23:55, 2,
+                                ifelse(sam_name %in% 56:67,3,4)))))
+  
+  # Get palette
+  pal=c("Switzerland"="hotpink1", "Japan"="lightblue2", 
+        "1"="deeppink1", "2"="deeppink4", "3"="lightsteelblue", "4"="lightsteelblue4")
+  
+  # Perform statistical test
+  fit<- adonis2(div_matrix~origin/colony, data=div_mtdata, permutations = 999, method="bray")
+  org_r2<- fit$R2[1]
+  print(fit)
+  text_stat=paste("p-values: country effect=", fit$`Pr(>F)`[1],
+                  "; ", "colony within country effect=", fit$`Pr(>F)`[2], sep="")
+  
+  # check assumption of homogeneity of multivariate dispersion (p-value >0.05)
+  distance_data<- vegdist(div_matrix)
+  print("check assumption of homogeneity of multivariate dispersion (p-value >0.05)")
+  print("origin:")
+  a<- anova(betadisper(distance_data, div_mtdata$origin))
+  print(a)
+  print("colony:")
+  a<-anova(betadisper(distance_data, div_mtdata$colony))
+  print(a)
+  
+  # plot NMDS plot
+  plot_nmds <- ggplot(bact_NMDS_df, aes(x = NMDS1, y = NMDS2, col= colony, shape =origin)) +
+    geom_point(size = 3, alpha = 0.8) +
+    scale_color_manual(values=pal)+
+    stat_ellipse(linetype = 2, size = 1, aes(color = colony)) +
+    theme_classic()+
+    labs(title = plt_title, subtitle = text_stat)
+  
+  if(plots){
+    stressplot(bact_NMDS)
+    print(plot_nmds)
+  }
+  
+  
+  return(fit$R2)
+}
+
+set.seed(123)
+plot_fancy_NMDS(plots=T)
+plot_fancy_NMDS(get_core(), plots=T)
+plot_fancy_NMDS("Snodgrassella", plots=T)
+plot_fancy_NMDS("Lactobacillus", plots=T)
+plot_fancy_NMDS("Bombilactobacillus", plots=T)
+plot_fancy_NMDS("Bartonella", plots=T)
+plot_fancy_NMDS("Bifidobacterium", plots=T)
+plot_fancy_NMDS("Gilliamella", plots=T)
+```
+
+```{r}
+es_df<- data.frame("genus"="core community", "r2"=plot_fancy_NMDS(get_core())[1])
+
+spp<- c("Snodgrassella", "Lactobacillus", 
+        "Bombilactobacillus", "Bartonella", 
+        "Bifidobacterium", "Gilliamella")
+
+set.seed(123)
+for(i in spp){
+    print(i)
+    r2<- plot_fancy_NMDS(i)[1]
+  
+  add<- c("genus"=i, "r2"=r2)
+  es_df<- rbind(es_df, add)
+}
+es_df$r2<- as.numeric(es_df$r2)
+
+ggplot(es_df, aes(x=genus, y=r2))+
+  geom_bar(stat = "identity")+
+  coord_flip()+
+  labs(x="", y="R2 county")+
+  theme_classic()
+```
+
+
+
+
+
+
+
+
+
+# Multimapping
+```{r}
+stb_taxon<- read.csv("../../../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb", sep="\t", header = F) %>% `colnames<-`(c("scaffold", "genome")) %>% 
+  mutate(genus=get_mtdata(mtdata_path=clust_p,
+                          "genus", corr="genome", genome),
+         id=get_mtdata(mtdata_path=clust_p,
+                          "id", corr="genome", genome))
+
+multireads_p<- "../../../results/mapping/multireads/all_B_multireads_count.tsv"
+multi_map<- read.csv(multireads_p, sep="\t", header=T) %>% 
+  left_join(., stb_taxon, by="scaffold") %>% group_by(genus, id, sample) %>% 
+  summarise(multireads=sum(multireads))
+```
+```{r}
+genome_info_reads<-  genome_info %>% group_by(id, sample) %>%
+  summarise(nr_reads=unique(reads_unfiltered_reads), coverage_median=unique(coverage_median),
+            breadth=unique(breadth))
+
+
+multi_map_full<- left_join(multi_map, genome_info_reads, by=c("id", "sample")) %>%
+  mutate(perc_multi=(multireads/nr_reads)*100) %>%
+  filter(coverage_median>=5, breadth >= 0.5, genus %in% get_core() )
+```
+
+```{r}
+multi_map_full %>%
+  group_by(genus, id) %>%
+  summarise(perc_multi_avg=mean(perc_multi),
+            sd_multi=sd(perc_multi))%>%
+ggplot(aes(x=id, y=perc_multi_avg, fill=genus))+
+  geom_bar(stat = "identity")+
+  geom_errorbar(aes(ymin = perc_multi_avg-sd_multi, ymax = perc_multi_avg+sd_multi), width = 0.4, position = "identity")+
+  scale_fill_manual(values = get_core_cols()[multi_map_full$genus])+
+  theme_classic()+
+  labs(x="", y="% multi-reads")+
+  coord_flip()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, face="bold"))+
+  facet_wrap(.~genus, ncol = 1, scales="free_y", strip.position = "left")
+
+
+ggplot(multi_map_full,aes(x=id, y=perc_multi, fill=genus))+
+  geom_boxplot()+
+  scale_fill_manual(values = get_core_cols()[multi_map_full$genus])+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  facet_wrap(.~genus, nrow = 1, scales="free_x")
+
+
+ggplot(multi_map_full,aes(x=id, y=multireads, fill=genus))+
+  geom_boxplot()+
+  scale_fill_manual(values = get_core_cols()[multi_map_full$genus])+
+  theme_classic()+
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  facet_wrap(.~genus, nrow = 1, scales="free_x")
+```
 # Core Genome
 ```{r}
 find_genome<- function(row){
@@ -245,7 +507,7 @@ venn_core_set<- list(
   Orthofiner=core_genes_ogf
 )
 
-ggvenn(venn_core_set)
+venn_cores<- ggvenn(venn_core_set); venn_cores
 
 ```
 
@@ -269,8 +531,28 @@ core_vs_acc_plt<- all_genes_df_filt %>% filter(coverage>=5, !genus=="Bombella") 
   scale_fill_manual(values=c("black", "gray"))+
   labs(x="", y="Gene Count", fill="")+
   theme_classic()+
-  theme(axis.text.x=element_text(angle = 45, vjust = 1, hjust=1, size=5, face="bold")); core_vs_acc_plt
-  
+  theme(axis.text.x=element_text(angle = 70, vjust = 1, hjust=1, size=10, face="bold")); core_vs_acc_plt
+
+core_vs_acc_motupan_plt<- all_genes_df_filt %>% filter(coverage>=5, !genus=="Bombella") %>% melt(measure.vars=c("type_motupan", "type_ogf"), variable.name="tool")%>%
+  group_by(genus, sample, tool, id) %>%
+  summarise(core=sum(value=="core"),
+            acccessory=sum(value=="accessory"))%>%
+  melt(measure.vars=c("core", "acccessory")) %>% 
+  filter(tool=="type_motupan") %>%
+  group_by(genus, id, variable, tool) %>%
+  summarise(SD=sd(value),me=mean(value)) %>%
+  group_by(id, tool) %>%
+  mutate(newy=cumsum(me)) %>%
+  ggplot(aes(x=Get_labels_linneus(id), y=me, fill=variable))+
+  facet_wrap(.~genus, ncol = 1, scales = "free_y", strip.position="right")+
+  geom_bar(stat="identity", position = position_stack(reverse = TRUE))+
+  geom_errorbar(aes(ymin = newy-SD, ymax = newy+SD), width = 0.3, position = "identity")+
+  scale_y_continuous(breaks = seq(0,3000, 200))+
+  scale_fill_manual(values=c("black", "gray"))+
+  labs(x="", y="Gene Count", fill="")+
+  theme_classic()+
+  coord_flip()+
+  theme(axis.text.y=element_text(angle = 0, vjust = 0, hjust=1, size=7, face="bold")); core_vs_acc_motupan_plt
 ```
 
 ```{r plot denisty and distributon of genes}
@@ -389,23 +671,25 @@ ggplot(motupan_core, aes(x=length_core, y=n_snv, col=genus))+
 
 snv_motupan<- ggplot(motupan_core, aes(x=id, y=perc_snv, fill=genus))+
   geom_boxplot(outlier.shape = NA)+
-  geom_beeswarm(size=0.5, aes(col=origin, alpha=0.3))+
-  scale_fill_manual(values=get_core_cols())+
+  geom_beeswarm(size=0.5, aes(col=origin), alpha=0.3)+
+  scale_fill_manual(values=get_core_cols()[motupan_core$genus])+
   scale_color_manual(values=c("grey", "black"))+
   ylim(0,7)+
   labs(x="", y="% SNV", title = "mOTUpan core genome")+
   theme_classic()+
-  theme(axis.text.x=element_text(angle = 90, vjust = 1, hjust=1, size=5, face="bold"))+
+  theme(axis.text.x=element_text(angle = 90, vjust = 1, hjust=1, size=10, face="bold"),
+        axis.title.y = element_text(size=10, face="bold"))+
   facet_wrap(.~genus, nrow = 1, scales = "free_x"); snv_motupan
 
 NuclDiv_motupan<- ggplot(motupan_core, aes(x=id, y=nucl_diversity, fill=genus))+
   geom_boxplot(outlier.shape = NA)+
-  geom_beeswarm(size=0.5, aes(col=origin, alpha=0.3))+
-  scale_fill_manual(values=get_core_cols())+
+  geom_beeswarm(size=0.5, aes(col=origin), alpha=0.3)+
+  scale_fill_manual(values=get_core_cols()[motupan_core$genus])+
   scale_color_manual(values=c("grey", "black"))+
   labs(x="", y="nucleotide diversity", title = "mOTUpan core genome")+
   theme_classic()+
-  theme(axis.text.x=element_text(angle = 90, vjust = 1, hjust=1, size=5, face="bold"))+
+  theme(axis.text.x=element_text(angle = 90, vjust = 1, hjust=1, size=10, face="bold"),
+        axis.title.y = element_text(size=10, face="bold"))+
   facet_wrap(.~genus, nrow = 1, scales = "free_x"); NuclDiv_motupan
 
 # Orthofinder
@@ -426,32 +710,53 @@ ggplot(ogf_core, aes(x=length_core, y=n_snv, col=genus))+
   
 snv_ogf<- ggplot(ogf_core, aes(x=id, y=perc_snv, fill=genus))+
   geom_boxplot(outlier.shape = NA)+
-  geom_beeswarm(size=0.5, aes(col=origin, alpha=0.3))+
-  scale_fill_manual(values=get_core_cols())+
+  geom_beeswarm(size=0.5, aes(col=origin), alpha=0.3)+
+  scale_fill_manual(values=get_core_cols()[ogf_core$genus])+
   ylim(0,7)+
   scale_color_manual(values=c("grey", "black"))+
   labs(x="", y="% SNV", title = "Orthofinder core genome")+
   theme_classic()+
-  theme(axis.text.x=element_text(angle = 90, vjust = 1, hjust=1, size=5, face="bold"))+
+  theme(axis.text.x=element_text(angle = 90, vjust = 1, hjust=1, size=10, face="bold"),
+        axis.title.y = element_text(size=10, face="bold"))+
   facet_wrap(.~genus, nrow = 1, scales = "free_x"); snv_ogf
 
 NuclDiv_ogf<- ggplot(ogf_core, aes(x=id, y=nucl_diversity, fill=genus))+
   geom_boxplot(outlier.shape = NA)+
-  geom_beeswarm(size=0.5, aes(col=origin, alpha=0.3))+
-  scale_fill_manual(values=get_core_cols())+
+  geom_beeswarm(size=0.5, aes(col=origin), alpha=0.3)+
+  scale_fill_manual(values=get_core_cols()[ogf_core$genus])+
   scale_color_manual(values=c("grey", "black"))+
   labs(x="", y="nucleotide diversity", title = "Orthofinder core genome")+
   theme_classic()+
-  theme(axis.text.x=element_text(angle = 90, vjust = 1, hjust=1, size=5, face="bold"))+
+  theme(axis.text.x=element_text(angle = 90, vjust = 1, hjust=1, size=10, face="bold"),
+        axis.title.y = element_text(size=10, face="bold"))+
   facet_wrap(.~genus, nrow = 1, scales = "free_x"); NuclDiv_ogf
 
 ```
+```{r}
+snv_motupan_org<- motupan_core %>% mutate(sam_name=as.numeric(gsub("B", "", sample)),
+  colony=factor(ifelse(sam_name<23, 1,
+                       ifelse(sam_name %in% 23:55, 2,
+                              ifelse(sam_name %in% 56:67,3,4))))) %>% 
+  ggplot(aes(x=Get_labels_linneus(id), y=perc_snv, fill=origin))+
+  geom_boxplot(outlier.shape = NA)+
+  scale_fill_manual(values=c("Switzerland"="hotpink1", "Japan"="Steelblue"))+
+  scale_color_manual(values=c("grey", "black"))+
+  stat_compare_means(label = "p.signif", label.y = 6)+
+  ylim(0,7)+
+  labs(x="", y="% SNV", title = "mOTUpan core genome")+
+  theme_classic()+
+  theme(axis.text.x=element_text(angle = 45, vjust = 1, hjust=1, size=5, face="bold"),
+        axis.title.y = element_text(size=10, face="bold"))+
+  facet_wrap(.~genus, scales = "free_x"); snv_motupan_org
+```
+
+
 
 # rarefaction curve
 ```{r, "core genes"}
-gene_len_df<- all_genes_df_filt %>% filter(coverage>=5, type_motupan=="core") %>%
-  group_by(id) %>%
-  summarise(sum_gene_len=sum(gene_length, na.rm=T))
+# gene_len_df<- all_genes_df_filt %>% filter(coverage>=5, type_motupan=="core") %>%
+#   group_by(id) %>%
+#   summarise(sum_gene_len=sum(gene_length, na.rm=T))
             
 snv_counts_df<- fread("../../../results/inStrain/B/data_tables/snv_counts_mOTUpanCore.tsv", sep="\t") %>% filter(!is.na(id))
 
@@ -480,18 +785,25 @@ ggplot(snv_counts_df, aes(x=sample_nr, y=cum_perc))+
 # save images
 ```{r}
 library(svglite)
-fig_../../../Figures/bacteria_community_analysis
+fig_dir<- "../../../Figures/bacteria_community_analysis"
 dir.create(fig_dir, showWarnings = FALSE)
+
+
+ggsave(paste(fig_dir, "/mapping filtering.svg", sep=""), 
+       mapping_filtering_plt, units ="mm", width = 297, height = 210, dpi=300)
+
+ggsave(paste(fig_dir, "/venn_cores.svg", sep=""), 
+      venn_cores, units ="mm", width = 297, height = 210, dpi=300)
 
 ggsave(paste(fig_dir, "/genera_relative_Abundance.svg", sep=""),  genera_relab_plt, units ="mm", width = 500, height = 310, dpi=300)
 
 ggsave(paste(fig_dir, "/species_relative_Abundance.svg", sep=""),  put_sp_prop_plt, units ="mm", width = 500, height = 310, dpi=300)
 
-ggsave(paste(fig_dir, "/core_vs_accessory.svg", sep=""),  core_vs_acc_plt, units ="mm", width = 297, height = 210, dpi=300)
+ggsave(paste(fig_dir, "/core_vs_accessory.svg", sep=""),  core_vs_acc_plt, units ="mm", width = 350, height = 210, dpi=300)
 
 ggsave(paste(fig_dir, "/snv_percentage_motupan.svg", sep=""),  snv_motupan, units ="mm", width = 500, height = 310, dpi=300)
 ggsave(paste(fig_dir, "/nucleotide_diversity_motupan.svg", sep=""),  NuclDiv_motupan, units ="mm", width = 500, height = 310, dpi=300)
-ggsave(paste(fig_dir, "/snv_percentage_orthofinder", sep=""),  snv_ogf, units ="mm", width = 500, height = 310, dpi=300)
+ggsave(paste(fig_dir, "/snv_percentage_orthofinder.svg", sep=""),  snv_ogf, units ="mm", width = 500, height = 310, dpi=300)
 ggsave(paste(fig_dir, "/nucleotide_diversity_orthofinder.svg", sep=""),  NuclDiv_ogf, units ="mm", width = 500, height = 310, dpi=300)
 
 
