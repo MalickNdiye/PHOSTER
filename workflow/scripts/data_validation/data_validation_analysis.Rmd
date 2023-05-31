@@ -38,6 +38,34 @@ library(viridis)
 source("../useful_func.R")
 ```
  
+#DNA extraction
+```{r}
+ext_mtdata<- read.csv("../../../data/metadata/DualDNA_Metadata.csv", sep="\t", header=T)%>%
+  filter(sam_name<80)
+
+sam_type_pal<- c("Bacteriome"="coral3", "Virome"="cadetblue3")
+extraction_yield_plt<- ggplot(ext_mtdata, aes(x=factor(sam_name, levels=sort(unique(sam_name))),
+                                              y=Conc...ng.μl., fill=sam_type))+
+  geom_bar(stat="identity", position = position_dodge())+
+  geom_segment(aes(x = 0.5, xend = 49.5, y = -2, yend = -2),
+                   size=10, col="lightpink2") +
+  geom_segment(aes(x = 49.5, xend = 73.5, y = -2, yend = -2),
+               size=10, col="lightcyan2") +
+  annotate("text", x = 25, y = -2, label = "Switzerland", face="bold") +
+  annotate("text", x = 61, y = -2, label = "Japan", face="bold") +
+  scale_y_continuous(breaks = seq(0,70, by=5))+
+  scale_fill_manual(values=sam_type_pal)+
+  labs(fill='', x="", y="DNA Concentration [ng/ul]")+ 
+  theme_classic()+
+  theme(axis.text.x = element_text(size = 10, angle = 90, hjust = .5,
+                                   vjust = .5, face= "bold"),
+        legend.position=c(0.2, 0.8),
+        legend.text = element_text(size=20,face="bold"));extraction_yield_plt
+
+
+```
+
+
 
 # QC
 
@@ -166,29 +194,38 @@ length(unique(krk_df$sample))
 ### Domain-level composition
 
 ```{r}
-my_pal<- palette("Pastel1")[c(1:4, 9)]
-dom_names<- rev(unique(factor(
-  krk_df$taxon[c(krk_df$rank_code=="U"|krk_df$rank_code=="D")])))
-names(my_pal)<- dom_names
-show_col(my_pal)
-
-
 plt_krk_df<- krk_df %>% mutate("sam_name"= unlist(strsplit(sample, split = "B|P"))) %>% filter( c(rank_code=="U"|rank_code=="D")) 
-my_pal<-my_pal[plt_krk_df$taxon]
+plt_krk_df$taxon[plt_krk_df$taxon=="GB_VCs"]<- "Honeybee Phages"
+plt_krk_df$taxon[plt_krk_df$taxon=="Viruses"]<- "Other Viruses"
+
+
+my_pal<- c("unclassified"="gray87", "Eukaryota"="indianred3",
+           "Bacteria"="mediumaquamarine","Honeybee Phages"="plum2",
+           "Other Viruses"="orchid4")
+
 
 krk_comm_plt<- ggplot(plt_krk_df, aes(x=reorder(sam_name, as.numeric(sam_name)),
                                       y=percentage_of_reads, 
-                                      fill=factor(taxon, levels = c("unclassified",
-                                                                    "Eukaryota",
-                                                                  "Bacteria","GB_VCs","Viruses")))) +
+                                      fill=factor(taxon, levels = names(my_pal)))) +
   geom_bar(position="stack", stat="identity") +
-  labs(x="Sample", y="Percentage of Reads") +
+  labs(x="", y="% Reads") +
+  geom_segment(aes(x = 0.5, xend = 49.5, y = -3, yend = -3),
+                   size=5, col="lightpink2") +
+  geom_segment(aes(x = 49.5, xend = 73.5, y = -3, yend = -3),
+               size=5, col="lightcyan2") +
+  annotate("text", x = 25, y = -3, label = "Switzerland", face="bold") +
+  annotate("text", x = 61, y = -3, label = "Japan", face="bold") +
   scale_fill_manual(values = my_pal) +
   scale_y_continuous(breaks = seq(0, 100, by = 5))+
-  guides(fill = guide_legend(title = "Domain")) +
+  guides(fill = guide_legend(title = "")) +
   theme_classic()+
-  theme(legend.position="top")+
-  facet_grid(sample_type~.); krk_comm_plt
+  theme(legend.position="top",
+        axis.text.y = element_text(face= "bold"),
+         axis.text.x = element_text(size = 10,  face= "bold",angle = 90, hjust = .5,
+                                   vjust = .5),
+        strip.text = element_text(size = 10, face="bold"),
+        legend.text = element_text(size=10,face="bold"))+
+  facet_wrap(sample_type~., ncol=1, strip.position="top"); krk_comm_plt
 
 
 ```
@@ -351,222 +388,21 @@ ggplot(df_count_comb, aes(x=reads_postFilt, y=bacterial_reads))+
   theme_classic()
 ```
 
-### Viral Clusters composition
-
+# Save Figs
 ```{r}
-setwd("../../")
+ggsave("../../../Figures/230324_DMF_FriSeminar/Kraken_plot.png",
+       krk_comm_plt,
+       units = "in",
+       dpi = 900,
+       width = 11.7,
+       height = 8.3)
 
-vc_mtdata_p<- "../data/metadata/GB_ViralClusters_metadata.csv"
-vc_mtdata<- read.csv(vc_mtdata_p, header=T, sep="\t")
+ggsave("../../../Figures/230324_DMF_FriSeminar/DNA_extraction_yield.png",
+       extraction_yield_plt,
+       units = "in",
+       dpi = 900,
+       width = 11.7,
+       height = 8.3)
 
-vc_name<- av_df %>% filter(grepl("VC", name)) %>% select(name) %>% unlist(use.names = FALSE)
-
-get_names<- function(data, names=vc_name){
-  t_list<-grepl(data, names)
-  i_list<- which(t_list)
-  
-  name<- ifelse(any(t_list), unique(vc_name[i_list]), data)
-  
-  return(name)
-}
-
-vc_mtdata<-vc_mtdata%>% mutate(name=lapply(VC_ID, get_names))
-
-head(vc_mtdata)
 ```
 
-```{r prepare for VCs rel freq heatmap}
-av_df2<- av_df %>% mutate(sam_name=substr(sample,1,nchar(sample)-1))
-
-dept_mat<- av_df2 %>% filter(rel_freq!=0, sam_type=="virome", hit_type=="GB_VCs") %>% select(c(sample, name, rel_freq))  %>%  spread(key=sample, value=rel_freq, fill = 0) %>% column_to_rownames(var="name")
-
-vc_mtdata2<-vc_mtdata %>% 
-  mutate(Predicted_Host=replace(Predicted_Host,Predicted_Host=="F4", "Firm4"))  %>%
-  mutate(Predicted_Host=replace(Predicted_Host,Predicted_Host=="F5", "Firm5")) %>%
-  mutate(Predicted_Host=replace(Predicted_Host,Predicted_Host=="unknown", "unclassified"))
-  
-
-host_tgt<- vc_mtdata2$Predicted_Host
-names(host_tgt)<- unlist(vc_mtdata2$name)
-
-target <- host_tgt[rownames(dept_mat)]
-target<- unname(target)
-
-cols<- brewer.pal(11, "Spectral")
-
-col_list<- c("Firm4"=cols[10],
-             "Firm5"="blue",
-             "kunkeei"="lightblue",
-             "Lactococcus"= cols[4],
-             "Gamma"=cols[9],
-             "Bifidobacterium"=cols[8],
-             "Commensalibacter"="tomato3",
-             "unclassified"="grey",
-             "Snodgrassella"=cols[6],
-             "Gilliamella" =cols[7],
-             "Bartonella"=cols[3],
-             "Gilliamella+Frischella"=cols[11],
-             "Pseudomonas"=cols[2],
-             "Apis"=cols[1],
-             "Characterized Phages"="turquoise",
-             "Frischella"=cols[5])
-
-pal_trgt=col_list[target]
-
-host_tgt
-show_col(cols)
-```
-
-```{r VCs relative frequency heatmap}
-col_fun = c("black",magma(10000, begin = 0.2, end = 0.9, direction = 1))
-
-vc_frq<- lost_df %>% filter(grepl("P", sample), sample!="LDP", hit_type=="GB_VCs") %>% select(mapping_freq)
-
-row_ha<- rowAnnotation("Target Host" = target, col=list("Target Host"= col_list))
-column_ha = HeatmapAnnotation("total relative\nabundance" = anno_barplot(vc_frq$mapping_freq,
-                                                                         axis_param=list(gp=gpar(fontsize=10, fontface = "bold"),
-                                                                                         at = seq(0,0.9,0.3)),
-                                                                         height=unit(2, "cm")),
-                                                                         annotation_name_gp = 
-                                gpar(fontsize=10,fontface = "bold"))
-
-
-#pdf("vc_ht.pdf",width=5,height=6)
-
-ht_viral <- Heatmap(dept_mat, col=col_fun, 
-                    row_names_gp = gpar(fontsize = 7),
-                    show_row_names = T,
-                    column_names_gp =
-                      gpar(fontsize = 10,  fontface = "bold"), column_names_rot =0,
-                    right_annotation = row_ha,
-                    show_row_dend=F, 
-                    show_column_dend=F, 
-                    name = "relative abundance\n",
-                    heatmap_legend_param = 
-                      list(title_gp = gpar(fontsize = 10,fontface = "bold"),
-                           labels_gp = gpar(fontsize = 10),
-                           legend_height= unit(0.6, "cm"),
-                           grid_width= unit(1, "cm")))
-
-ht_viral
-#dev.off()
-```
-
-```{r rel freq cumulative plot}
-
-viral_frq<- av_df2 %>% filter(rel_freq!=0, sam_type=="virome", hit_type=="GB_VCs") %>%
-  select(c(sample, name, rel_freq)) %>% 
-  arrange(sample, desc(rel_freq))  %>% 
-  dplyr::group_by(sample) %>%
-  dplyr::summarise("cum_sum"=cumsum(rel_freq), "n"=1:length(sample), "max_sum"= max(cum_sum)) %>%
-  group_by(sample) %>%
-  group_modify(~ add_row(.x,.before=0))
-
-viral_frq$n[is.na(viral_frq$n)]<- 0
-viral_frq$cum_sum[is.na(viral_frq$cum_sum)]<- 0
-
-
-cum_plt<- ggplot(viral_frq, aes(x=n, y=cum_sum))+
-  geom_line()+
-  geom_point(size=0.5)+
-  ylim(0,1)+
-  facet_grid(~sample)+
-  geom_hline(data=viral_frq, aes(yintercept = max_sum), linetype ="dashed", col="red")+
-  labs(x="Viral Clusters", y="Relative Abundance")+
-  theme_classic()+
-  theme(
-    axis.title.x = element_text(size=14, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=14, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=10, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=10, face="bold", colour = "black"),
-    strip.text.y= element_text(size=12, face="bold", colour = "black"),
-    legend.text=element_text(size=10, face="bold", colour = "black"))
-
-cum_plt
-```
-
-
-## Unmapped reads
-```{r}
-setwd("../../")
-
-asmbl_p<-("../results/data_validation/reads_mapping/unmapped_asssembly/assemblies_summary.txt")
-asmbl<- read.csv(asmbl_p, header=T, sep="\t")
-```
-
-```{r}
-asmbl %>% group_by(sample) %>% summarise("contigs > 1000bp[%] "=(sum(size.bp.>1000)/length(contig))*100) %>% kable()
-asmbl %>% group_by(sample) %>% summarise("nr. contigs"=length(contig))%>% kable()
-```
-
-### Clustering
-```{r}
-setwd("../../")
-
-clstr_80_p<- "../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_parsed_80.txt"
-clstr_100_p<- "../results/data_validation/reads_mapping/unmapped_asssembly/clustering/unmapped_contigs_clstr_parsed_100.txt"
-
-
-clstr_80<- read.table(clstr_80_p, header = T, sep="\t") %>% mutate("cluster_id"=factor(80))
-clstr_100<- read.table(clstr_100_p, header = T, sep="\t")%>% mutate("cluster_id"=factor(100))
-
-clstr<-rbind(clstr_80, clstr_100)
-
-head(clstr)
-```
-```{r}
-clstr_sum<-clstr %>% group_by(cluster, cluster_id)%>%
-  summarise(cluster_size=length(cluster_size),
-            avg_id=mean(identity),
-            avg_cov=mean(kmer_cov), 
-            max_length=max(length),
-            min_length=min(length))
-
-ggplot(clstr_sum, aes(x=cluster_size))+
-  geom_bar()+
-      theme(legend.position = "none",
-        axis.text.x = element_text(size=20), 
-        axis.text.y = element_text(size=20))+
-  theme_classic()+
-  facet_wrap(~cluster_id)
-
-clst_80<- clstr_sum %>% filter(cluster_id==80)
-
-clstsize_plt<- ggplot(clst_80, aes(x=cluster_size)) + 
-  geom_bar(width=0.8) +
-  labs(x="cluster size")+
-  scale_x_continuous(breaks=seq(1,max(clstr_80$cluster_size), by=1))+
-  #scale_y_continuous(breaks=seq(0,150, by=20))+
-  theme_classic()+
-  theme(
-    plot.title = element_text(size=20, face= "bold", colour= "black" ),
-    axis.title.x = element_text(size=15, face="bold", colour = "black"),    
-    axis.title.y = element_text(size=15, face="bold", colour = "black"),    
-    axis.text.x = element_text(size=15, face="bold", colour = "black"), 
-    axis.text.y = element_text(size=15, face="bold", colour = "black"),
-    strip.text.x= element_text(size=12, face="bold", colour = "black"),
-    legend.text=element_text(size=15, face="bold", colour = "black"))
-  
-clstsize_plt
-```
-
-```{r}
-sams<- unique(clstr$sample)
-
-get_clstrs<- function(sam, id, data=clstr){
-  a<- clstr %>% filter(cluster_id==id, sample==sam)
-  cl_list<-a$cluster
-  return(cl_list)
-}
-
-cluster_sets<- lapply(sams, get_clstrs, id=80)
-names(cluster_sets)<- sams
-
-upseti<- upset(fromList(cluster_sets),
-               nsets=10,
-               order.by = "freq", 
-      mainbar.y.label = "Clusters Intersections",
-      sets.x.label = "Nr. of Clusters")
-
-upseti
-```

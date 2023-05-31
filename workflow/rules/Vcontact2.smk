@@ -1,73 +1,95 @@
-rule PRODIGAL:
+####################################################################################
+################################## vContact2 #######################################
+####################################################################################
+# The foilowing rules are used to prepare the viral contigs/bins file to run vContact2
+################################################################################
+################################################################################
+
+# this rule split the contigs into single genomes fasta files
+rule split_contig:
     input:
-        sam_tab= "../results/MAG_binning/vBins/phamb/sample_table.txt" 
+        concat=expand("../results/assembly/viral_contigs/concat/{sample}_viral_contigs_concat.fasta", sample=config["samples"]),
+        filt=expand("../results/assembly/viral_contigs/filtered/{sample}_viral_contigs_filtered.fasta", sample=config["samples"])
     output:
-        proteins = "../results/MAG_binning/vBins/phamb/sample_annotation/{vSam}/{vSam}.predicted_proteins.faa",
-        genes = "../results/MAG_binning/vBins/phamb/sample_annotation/{vSam}/{vSam}.predicted_proteins.fna"
-    params:  
-        tmp_contigs = "sample_annotation/{vSam}.unzipped_contigs.fna",
-        contigs = "../results/MAG_binning/vBins/phamb/assembly/{vSam}/{vSam}" + CONTIGSUFFIX
+        concat_dir=temp(directory("../scratch_link/viral_contigs/concat_single_genomes/")),
+        filt_dir=temp(directory("../scratch_link/viral_contigs/filtred_single_genomes/"))
+    resources:
+        account="pengel_beemicrophage",
+        runtime="0:30:00",
+        mem_mb = 8000
+    threads: 1
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/vMAGs/split_contigs.log"
+    shell:
+        """
+        for file in {input.concat} ; do
+            python scripts/assembly/split_assembly.py -f $file -d {output.concat_dir}
+        done
+
+        for file in {input.filt} ; do
+            python scripts/assembly/split_assembly.py -f $file -d {output.filt_dir}
+        done
+        """
+
+rule prodigal_concat_bins:
+    input:
+        fasta=expand("../results/assembly/viral_contigs/concat/{sample}_viral_contigs_concat.fasta", sample=config["samples"])
+    output:
+        agg_fasta=temp("../results/assembly/viral_contigs/concat/all_viral_contigs_concat.fasta"),
+        proteins = "../results/assembly/viral_contigs/annotations/all_viral_contigs_concat.faa",
+        genes = "../results/assembly/viral_contigs/annotations/all_viral_contigs_concat.fna"
     threads: 1
     conda:
         "envs/prodigal.yaml"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 8000,
-        runtime= "00:30:00"
+        runtime= "01:30:00"
     log:
-        "logs/magannotation_log/prodigal/{vSam}.prodigal.log"
+        "logs/vMAGs/annotations/prodigal.log"
     shell:
-        """
-        if [[ {params.contigs} = *.gz ]]; then
-            gunzip -c {params.contigs} > {params.tmp_contigs}
-            prodigal -i {params.tmp_contigs} -d {output.genes} -a {output.proteins} -p meta -g 11 -q 2>{log}
-            rm {params.tmp_contigs}
-        else
-            prodigal -i {params.contigs} -d {output.genes} -a {output.proteins} -p meta -g 11 -q 2>{log}
-        fi
-        """
-
-def get_all_vProt(wildcards):
-    sample_table = checkpoints.split_vamb_contigs.get(**wildcards).output[3]
-    IDS = []
-    with open(sample_table,'r') as infile:
-        for line in infile:
-            line = line.rstrip()
-            IDS.append(line)
-    return(expand("../results/MAG_binning/vBins/phamb/sample_annotation/{vSam}/{vSam}.predicted_proteins.faa", vSam=IDS))
-
+        "cat {input.fasta} > {output.agg_fasta}; "
+        "prodigal -i {output.agg_fasta} -d {output.genes} -a {output.proteins} -p meta -g 11"
 
 rule gene_2_genome:
     input:
-        proteins = get_all_vProt
+        all_vprot = "../results/assembly/viral_contigs/annotations/all_viral_contigs_concat.faa"
     output:
-        all_vprot = "../results/Vcontact2/proteins/all_viral_prot.faa",
-        gene_2_genome = "../results/Vcontact2/proteins/gene_to_genome.csv"
+        gene_2_genome = "../results/Vcontact2/gene_to_genome.csv"
     threads: 1
+    conda:
+        "envs/mags_env.yaml"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 8000,
         runtime= "00:10:00"
+    log:
+        "logs/vcontact/gene_to_genome.log"
     shell:
-        "cat {input} > {output.all_vprot}; "
-        "python scripts/Viral_classification/gener2genome.py -p {output.all_vprot} -o {output.gene_2_genome} -s 'Prodigal-FAA'"
-
+        "python scripts/Viral_classification/gene2genome.py -p {input.all_vprot} -o {output.gene_2_genome} -s 'Prodigal-FAA'"
 
 rule run_vcontact:
     input:
-        all_vprot = "../results/Vcontact2/proteins/all_viral_prot.faa",
-        gene_2_genome = "../results/Vcontact2/proteins/gene_to_genome.csv"
+        all_vprot = "../results/assembly/viral_contigs/annotations/all_viral_contigs_concat.faa",
+        gene_2_genome = "../results/Vcontact2/gene_to_genome.csv"
     output:
         directory("../results/Vcontact2/vCONTACT_results")
     threads: 48
-    params: 
+    params:
         condaenv="resources/conda_envs/vcontact2"
     log:
         "logs/vcontact/run_vcontact2.log"
+    benchmark:
+        "logs/vcontact/run_vcontact2.benchmark"
     resources:
         account = "pengel_beemicrophage",
-        mem_mb = 100000,
-        runtime= "24:00:00"
+        mem_mb = 512000,
+        runtime= "15:00:00"
     shell:
-        "conda activate {params.condaenv}; "
-        "vcontact2 -t {threads} --raw-proteins {input.all_vprot} --rel-mode 'Diamond' --proteins-fp {input.gene_2_genome} --db 'ProkaryoticViralRefSeq211-Merged' --pcs-mode MCL --vcs-mode ClusterONE --c1-bin {params.condaenv}/bin/cluster_one-1.0.jar --output-dir {output} -e 'cytoscape' -e 'csv'"
+        """
+        bash -c '. $HOME/.bashrc
+            conda activate {params.condaenv}
+            vcontact2 -t {threads} --raw-proteins {input.all_vprot} --rel-mode 'Diamond' --proteins-fp {input.gene_2_genome} --db 'ProkaryoticViralRefSeq211-Merged' --pcs-mode MCL --vcs-mode ClusterONE --c1-bin {params.condaenv}/bin/cluster_one-1.0.jar --output-dir {output} -e 'cytoscape' -e 'csv''
+        """

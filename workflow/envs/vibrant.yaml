@@ -1,0 +1,8 @@
+name: vibrant
+channels:
+  - bioconda
+  - anaconda
+dependencies:
+  - vibrant
+  - prodigal
+  - hmmer

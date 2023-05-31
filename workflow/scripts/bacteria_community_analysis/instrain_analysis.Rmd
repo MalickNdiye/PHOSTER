@@ -16,6 +16,7 @@ library(ggrepel)
 source("../useful_func.R")
 library(MASS)
 library(pals)
+library(plotly)
 ```
 
 ```{r get figure path}
@@ -89,10 +90,22 @@ cols<-  get_gen_col(genome_info_filt$genus, rel_ab = genome_info_filt$frequency,
 genera_relab_plt<- genome_info_filt %>% mutate(tax_plt=ifelse(frequency>th, genus, paste("other<", th,"%", sep=""))) %>%
   ggplot(aes(x=factor(sample, levels=mixedsort(unique(sample))), y=frequency, fill=factor(tax_plt, levels=levs)))+
     geom_bar(stat = "identity", position = "stack",color = "black" , size = 0.2)+
+  geom_segment(aes(x = 0.5, xend = 49.5, y = -0.03, yend = -0.03),
+                   size=10, col="lightpink2") +
+  geom_segment(aes(x = 49.5, xend = 73.5, y = -0.03, yend = -0.03),
+               size=10, col="lightcyan2") +
+  annotate("text", x = 25, y = -0.03, label = "Switzerland", face="bold") +
+  annotate("text", x = 61, y = -0.03, label = "Japan", face="bold") +
     scale_fill_manual(values=cols)+
-  labs(x="", y="relative Frequency", fill="")+
+  labs(x="", y="Relative Frequency", fill="")+
   theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)); genera_relab_plt
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, face="bold"),
+        axis.text.y = element_text(face="bold"),
+        axis.title.y = element_text(face="bold"),
+        legend.position = "top",
+        legend.text = element_text(face="bold")); genera_relab_plt
+
+ggplotly(genera_relab_plt)
 ```
 
 ## putative species relative proportion
@@ -115,15 +128,27 @@ my_pal<- genome_plt %>% pull(sp_cols)
 levs<- sort(unique(names(my_pal)))
 
 
-put_sp_prop_plt<- ggplot(genome_plt, aes(x=factor(sample, levels=mixedsort(unique(sample))), y=freq_inG, fill=id))+
+put_sp_prop_plt<- ggplot(genome_plt, aes(x=factor(sample,
+                                                  levels=mixedsort(unique(sample))),
+                                         y=freq_inG, 
+                                         fill=id))+
   geom_bar(stat = "identity", position = "stack", color = "black" , size = 0.2)+
+  geom_segment(aes(x = 0.5, xend = 49.5, y = -0.05, yend = -0.05),
+                   size=10, col="lightpink2") +
+  geom_segment(aes(x = 49.5, xend = 73.5, y = -0.05, yend = -0.05),
+               size=10, col="lightcyan2") +
+  annotate("text", x = 25, y = -0.05, label = "Switzerland", face="bold") +
+  annotate("text", x = 61, y = -0.05, label = "Japan", face="bold") +
   scale_fill_manual(values=my_pal, breaks = levs)+
-    theme_classic()+
-      facet_wrap(.~genus)+
+  theme_classic()+
+  facet_wrap(.~genus)+
   labs(fill="", x="", y="Relative Frequency within Genus")+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, size =5, face="bold"), legend.position="top",
-        legend.text = element_text(size=10, 
-                                     face="bold")); put_sp_prop_plt
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5,
+                                   hjust=1, size =5, face="bold"),
+        legend.position="top",
+        legend.text = element_text(size=10,face="bold")); put_sp_prop_plt
+
+ggplotly(put_sp_prop_plt)
 ```
 # Species-level Diversity
 ```{r}
@@ -192,7 +217,7 @@ ggplot(alpha_df, aes(x=origin, y=sp_rich, fill=colony))+
 
 ggplot(alpha_df, aes(x=origin, y=sp_rich))+
   geom_boxplot()+
-  stat_compare_means(method = "t.test", ref.group = ".all.")+
+  stat_compare_means()+
   theme(axis.text.x = element_text(angle = 0, vjust = 0.5, size =10, face="bold"))
 ```
 
@@ -379,6 +404,7 @@ ggplot(multi_map_full,aes(x=id, y=multireads, fill=genus))+
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
   facet_wrap(.~genus, nrow = 1, scales="free_x")
 ```
+
 # Core Genome
 ```{r}
 find_genome<- function(row){
@@ -533,7 +559,9 @@ core_vs_acc_plt<- all_genes_df_filt %>% filter(coverage>=5, !genus=="Bombella") 
   theme_classic()+
   theme(axis.text.x=element_text(angle = 70, vjust = 1, hjust=1, size=10, face="bold")); core_vs_acc_plt
 
-core_vs_acc_motupan_plt<- all_genes_df_filt %>% filter(coverage>=5, !genus=="Bombella") %>% melt(measure.vars=c("type_motupan", "type_ogf"), variable.name="tool")%>%
+core_vs_acc_motupan_plt<- all_genes_df_filt %>%
+  filter(coverage>=5, !genus=="Bombella") %>% 
+  reshape2::melt(measure.vars=c("type_motupan", "type_ogf"), variable.name="tool")%>%
   group_by(genus, sample, tool, id) %>%
   summarise(core=sum(value=="core"),
             acccessory=sum(value=="accessory"))%>%
@@ -544,7 +572,7 @@ core_vs_acc_motupan_plt<- all_genes_df_filt %>% filter(coverage>=5, !genus=="Bom
   group_by(id, tool) %>%
   mutate(newy=cumsum(me)) %>%
   ggplot(aes(x=Get_labels_linneus(id), y=me, fill=variable))+
-  facet_wrap(.~genus, ncol = 1, scales = "free_y", strip.position="right")+
+  facet_wrap(.~genus, ncol = 1, scales = "free_y", strip.position="top")+
   geom_bar(stat="identity", position = position_stack(reverse = TRUE))+
   geom_errorbar(aes(ymin = newy-SD, ymax = newy+SD), width = 0.3, position = "identity")+
   scale_y_continuous(breaks = seq(0,3000, 200))+
@@ -552,7 +580,12 @@ core_vs_acc_motupan_plt<- all_genes_df_filt %>% filter(coverage>=5, !genus=="Bom
   labs(x="", y="Gene Count", fill="")+
   theme_classic()+
   coord_flip()+
-  theme(axis.text.y=element_text(angle = 0, vjust = 0, hjust=1, size=7, face="bold")); core_vs_acc_motupan_plt
+  theme(axis.text.y=element_text(angle = 0, vjust = 0, hjust=1, size=7, face="bold"),
+        axis.text.x=element_text(face="bold"),
+        strip.text=element_text(face="bold", size=9),
+        axis.title.x=element_text(face="bold"),
+        legend.text=element_text(face="bold", size=8),
+        legend.position = "top"); core_vs_acc_motupan_plt
 ```
 
 ```{r plot denisty and distributon of genes}
@@ -669,17 +702,36 @@ ggplot(motupan_core, aes(x=length_core, y=n_snv, col=genus))+
   theme_classic()
 
 
-snv_motupan<- ggplot(motupan_core, aes(x=id, y=perc_snv, fill=genus))+
+snv_motupan<- ggplot(motupan_core, aes(x=Get_labels_linneus(id),
+                                       y=perc_snv, fill=genus))+
   geom_boxplot(outlier.shape = NA)+
-  geom_beeswarm(size=0.5, aes(col=origin), alpha=0.3)+
+  geom_point(size=0.5)+
   scale_fill_manual(values=get_core_cols()[motupan_core$genus])+
   scale_color_manual(values=c("grey", "black"))+
   ylim(0,7)+
-  labs(x="", y="% SNV", title = "mOTUpan core genome")+
+  labs(x="", y="% SNV")+
   theme_classic()+
-  theme(axis.text.x=element_text(angle = 90, vjust = 1, hjust=1, size=10, face="bold"),
-        axis.title.y = element_text(size=10, face="bold"))+
-  facet_wrap(.~genus, nrow = 1, scales = "free_x"); snv_motupan
+  theme(axis.text.y=element_text(size=7, face="bold"),
+        axis.title.x = element_text(size=10, face="bold"),
+        legend.position = "none",
+        strip.text = element_text(face="bold"))+
+  coord_flip()+
+  facet_wrap(.~genus, ncol = 1, scales = "free_y"); snv_motupan
+
+snv_motupan_bifido<- motupan_core %>% filter(genus=="Bifidobacterium")%>%
+  ggplot(aes(x=Get_labels_linneus(id),y=perc_snv, fill=genus))+
+  geom_boxplot(outlier.shape = NA)+
+  geom_point(size=0.5)+
+  scale_fill_manual(values=get_core_cols()[motupan_core$genus])+
+  scale_color_manual(values=c("grey", "black"))+
+  ylim(0,7)+
+  labs(x="", y="% SNV")+
+  theme_classic()+
+  coord_flip()+
+  theme(axis.text.y=element_text(size=7, face="bold"),
+        axis.title.x = element_text(size=10, face="bold"),
+        legend.position = "none",
+        strip.text = element_text(face="bold")); snv_motupan_bifido
 
 NuclDiv_motupan<- ggplot(motupan_core, aes(x=id, y=nucl_diversity, fill=genus))+
   geom_boxplot(outlier.shape = NA)+
@@ -811,4 +863,39 @@ ggsave(paste(fig_dir, "/SNV_rarefaction.svg", sep=""),  snv_cum_plt_motupan, uni
 
 dev.off()
 ```
+
+
+```{r}
+ggsave("../../../Figures/230324_DMF_FriSeminar/community_composition_genus_topLeg.png",
+       genera_relab_plt,
+       units = "in",
+       dpi = 900,
+       width = 11.7,
+       height = 8.3)
+
+ggsave("../../../Figures/230324_DMF_FriSeminar/core_vs_accessory_genes.png",
+       core_vs_acc_motupan_plt,
+       units = "in",
+       dpi = 900,
+       width = 8.3,
+       height = 11.7)
+
+ggsave("../../../Figures/230324_DMF_FriSeminar/SNVperc_mOTUpan.png",
+       snv_motupan,
+       units = "in",
+       dpi = 900,
+       width = 8.3,
+       height = 11.7)
+
+ggsave("../../../Figures/230324_DMF_FriSeminar/SNVperc_mOTUpan_bifido.png",
+       snv_motupan_bifido,
+       units = "in",
+       dpi = 900,
+       width = 11.7,
+       height = 8.3 )
+
+
+
+```
+
 

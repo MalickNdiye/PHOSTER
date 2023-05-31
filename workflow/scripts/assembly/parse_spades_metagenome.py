@@ -17,16 +17,27 @@ sample=filename.split("_")[sam_pos]
 
 
 def accept_contig(header):
-    length = header.split("_")[3]
-    cov = header.split("_")[5]
-    if float(length) > length_threshold and float(cov) > coverage_threshold:
+    if "multi" not in str(header):
+        length = header.split("_")[3]
+        cov = header.split("_")[5]
+    else:
+        length= header.split(" ")[3].split("=")[1]
+        cov = header.split(" ")[2].split("=")[1]
+
+    if float(length) > length_threshold and float(cov) >= coverage_threshold:
         return(True)
     else:
         return(False)
 
-def get_head_info(header):
-    head_info=header.split("_")
-    info={"id": head_info[1], "length": head_info[3], "cov":head_info[5]}
+
+def get_head_info(header, c):
+    if "multi" not in str(header):
+        head_info=header.split("_")
+        info={"id": head_info[1], "length": head_info[3], "cov":head_info[5]}
+    else:
+        head_info=header.split(" ")
+        info={"id": str(c), "length": head_info[3].split("=")[1], "cov":head_info[2].split("=")[1]}
+
     return(info)
 
 fasta_sequences = SeqIO.parse(open(f_in),'fasta')
@@ -35,8 +46,9 @@ filt_stats=open(tab_out, "a")
 
 count=1
 for fasta in fasta_sequences:
-    name, sequence = fasta.id, str(fasta.seq)
-    head_inf=list(get_head_info(name).values())
+    name, sequence = fasta.description, str(fasta.seq)
+
+    head_inf=list(get_head_info(name, count).values())
     head_inf.insert(0, sample)
 
     print("\n--- Contig " + str(count) + ":")

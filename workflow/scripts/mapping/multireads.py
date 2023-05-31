@@ -19,7 +19,7 @@ for read in bamfile.fetch():
     if read.is_secondary or read.is_supplementary: #skip secondary and supplementary aligment
         continue
 
-    if read.has_tag("XS") and read.has_tag("AS") and read.get_tag("XS") == read.get_tag("AS"): # find multireads
+    if read.has_tag("XS") and read.has_tag("AS") and read.get_tag("XS") == read.get_tag("AS") and read.mapping_quality < 2: # find multireads
         contig_name = bamfile.get_reference_name(read.reference_id)
         mapq = read.mapping_quality
 
