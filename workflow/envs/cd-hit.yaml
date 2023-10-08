@@ -1,5 +1,9 @@
 name: cd-hit_env
 channels:
   - bioconda
+  - conda-forge
 dependencies:
+ - biopython=1.80=py311hd4cff14_0
  - cd-hit=4.8.1
+ - pip=23.0=pyhd8ed1ab_0
+ - python=3.11.0=he550d4f_1_cpython

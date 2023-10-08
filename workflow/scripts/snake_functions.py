@@ -1,3 +1,7 @@
+import pandas as pd
+import numpy as np
+import os
+
 def get_direction_r1(wildcards) :
 #This  function returns a list of R1 reads when the same sample was sequenced on multiple lanes
     samname=wildcards.sample
@@ -86,3 +90,44 @@ def get_all_SecCluster(path, ignore_sing=True):
         secodary_clusters=set(secodary_clusters)
 
     return(secodary_clusters)
+
+
+def concat_tables(tables_list, skip=0, delimiter="\t", head=0, add={}):
+    # this function concatenates a list of tables
+    # tables_list: list of tables to concatenate
+    # returns: concatenated table
+    df_list=[]
+    count=0
+    for t in tables_list:
+        # open file skipping "skip lines" and adding header
+        df=pd.read_csv(t,  skiprows=skip, sep=delimiter, header=head)
+         
+         # "add" is a dictionary with columns to add
+         # hey: column name, value: list of values to add, each value correspond to a daframe in tables_list
+        for key, value in add.items():
+            df[key]=value[count]
+        count+=1
+
+        df_list.append(df)
+
+    df=pd.concat(df_list)
+    
+    return(df)
+
+
+def get_MAGs_red(wildcards):
+    clust_file = checkpoints.parse_dRep.get(**wildcards).output[3]
+    df=pd.read_csv(clust_file, delimiter="\t")
+
+    # get column "genome" as list
+    genomes=list(df["genome"])
+
+    return(genomes)
+
+def get_bact_annot_prot(wildcards):
+    dir=checkpoints.annotate_bacterial_genomes.get(**wildcards).output[1]
+    # list fines in dir keeping entire path
+    files=os.listdir(dir)
+    files=[os.path.join(dir, f) for f in files]
+
+    return(files)

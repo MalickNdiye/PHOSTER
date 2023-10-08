@@ -37,7 +37,7 @@ clust<- read.csv(clust_p, header=T, sep="\t") %>%
 
 # Mapping stats
 ```{r}
-mapping_info<- read.csv("../../../results/inStrain/B/data_tables/all_mapping_info.tsv", header=T, sep="\t")%>%
+mapping_info<- read.csv("../../../results/inStrain/profile_B/summary_data/all_mapping_info.tsv", header=T, sep="\t")%>%
   filter(scaffold=="all_scaffolds")
 ```
 
@@ -64,11 +64,13 @@ mapping_filtering_plt<- ggplot(mapping_info_m, aes(x=factor(sample, levels = mix
 # Community composition
 ```{r}
   
-genome_info<-  read.csv("../../../results/inStrain/B/data_tables/all_genome_info.tsv", header=T, sep="\t") %>% 
+genome_info<-  read.csv("../../../results/inStrain/profile_B/summary_data/all_genome_info.tsv", header=T, sep="\t") %>% 
   mutate("id"= get_mtdata(mtdata_path="../../../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv",
-                          "id", corr="genome", genome))%>%
-  relocate(species, .after = genome) %>%
-  relocate(genus, .after = species) %>%
+                          "id", corr="genome", genome),
+         "genus"= get_mtdata(mtdata_path="../../../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv",
+                          "genus", corr="genome", genome))%>%
+  #relocate(species, .after = genome) %>%
+  relocate(genus, .after = genome) %>%
   relocate(id, .after = genus)
 
 genome_info_filt <- genome_info %>% filter(coverage_median>=5 & breadth >= 0.5) %>%
@@ -150,6 +152,7 @@ put_sp_prop_plt<- ggplot(genome_plt, aes(x=factor(sample,
 
 ggplotly(put_sp_prop_plt)
 ```
+
 # Species-level Diversity
 ```{r}
 library(vegan)
@@ -341,70 +344,6 @@ ggplot(es_df, aes(x=genus, y=r2))+
   theme_classic()
 ```
 
-
-
-
-
-
-
-
-
-# Multimapping
-```{r}
-stb_taxon<- read.csv("../../../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb", sep="\t", header = F) %>% `colnames<-`(c("scaffold", "genome")) %>% 
-  mutate(genus=get_mtdata(mtdata_path=clust_p,
-                          "genus", corr="genome", genome),
-         id=get_mtdata(mtdata_path=clust_p,
-                          "id", corr="genome", genome))
-
-multireads_p<- "../../../results/mapping/multireads/all_B_multireads_count.tsv"
-multi_map<- read.csv(multireads_p, sep="\t", header=T) %>% 
-  left_join(., stb_taxon, by="scaffold") %>% group_by(genus, id, sample) %>% 
-  summarise(multireads=sum(multireads))
-```
-```{r}
-genome_info_reads<-  genome_info %>% group_by(id, sample) %>%
-  summarise(nr_reads=unique(reads_unfiltered_reads), coverage_median=unique(coverage_median),
-            breadth=unique(breadth))
-
-
-multi_map_full<- left_join(multi_map, genome_info_reads, by=c("id", "sample")) %>%
-  mutate(perc_multi=(multireads/nr_reads)*100) %>%
-  filter(coverage_median>=5, breadth >= 0.5, genus %in% get_core() )
-```
-
-```{r}
-multi_map_full %>%
-  group_by(genus, id) %>%
-  summarise(perc_multi_avg=mean(perc_multi),
-            sd_multi=sd(perc_multi))%>%
-ggplot(aes(x=id, y=perc_multi_avg, fill=genus))+
-  geom_bar(stat = "identity")+
-  geom_errorbar(aes(ymin = perc_multi_avg-sd_multi, ymax = perc_multi_avg+sd_multi), width = 0.4, position = "identity")+
-  scale_fill_manual(values = get_core_cols()[multi_map_full$genus])+
-  theme_classic()+
-  labs(x="", y="% multi-reads")+
-  coord_flip()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1, face="bold"))+
-  facet_wrap(.~genus, ncol = 1, scales="free_y", strip.position = "left")
-
-
-ggplot(multi_map_full,aes(x=id, y=perc_multi, fill=genus))+
-  geom_boxplot()+
-  scale_fill_manual(values = get_core_cols()[multi_map_full$genus])+
-  theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  facet_wrap(.~genus, nrow = 1, scales="free_x")
-
-
-ggplot(multi_map_full,aes(x=id, y=multireads, fill=genus))+
-  geom_boxplot()+
-  scale_fill_manual(values = get_core_cols()[multi_map_full$genus])+
-  theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
-  facet_wrap(.~genus, nrow = 1, scales="free_x")
-```
-
 # Core Genome
 ```{r}
 find_genome<- function(row){
@@ -440,7 +379,7 @@ all_genes_df<- fread("../../../results/inStrain/B/data_tables/all_gene_info.tsv"
          "secondary_cluster_n"=get_mtdata(mtdata_path=clust_p, "secondary_cluster_n", corr="genome", genome))
 
 gene_to_genome<- setNames(all_genes_df$genome, all_genes_df$gene)
-gene_to_genome<- gene_to_genome[unique(names(gene_to_genome))]
+gene_to_genome<- gene_to_genome[unique(names(gene_to_genome))] # TODO write a parser for this
 ```
 
 
@@ -458,7 +397,7 @@ motupan_df<-do.call(rbind, lapply(motupan_files,function(x) format_motupan_file(
          "secondary_cluster"=get_mtdata(mtdata_path=clust_filt_p, "secondary_cluster", corr="genome", genome),
          "secondary_cluster_n"=get_mtdata(mtdata_path=clust_p, "secondary_cluster_n", corr="genome", genome)) 
 
-rownames(motupan_df)<- 1:nrow(motupan_df)
+rownames(motupan_df)<- 1:nrow(motupan_df) # TODO add to parser
 ```
 
 ```{r}
@@ -479,7 +418,7 @@ sog_isolates_core<- sog_isolates %>% filter(og_prevalence==nr_genomes)
 all_core<- sog_genomes %>% 
   mutate("og_tax"=paste(Orthogroup, genus, sep="-")) %>%
   filter((og_tax %in% sog_isolates_core$og_tax)) %>%
-  mutate("id"= get_mtdata(mtdata_path=clust_filt_p, "id", corr="Bin.Id", genome))
+  mutate("id"= get_mtdata(mtdata_path=clust_filt_p, "id", corr="Bin.Id", genome)) # TODO add to parser
 ```
 
 ## mOTUpan vs Orthofinder
@@ -522,8 +461,15 @@ all_genes_df<- all_genes_df %>% filter(genus %in% get_core()) %>%
 
 all_genes_df_filt<- all_genes_df %>%
   filter(sam_ids %in% sam_id) %>%
-  mutate(origin=ifelse(as.numeric(gsub("B", "", sample))>55, "Japan", "Switzerland"))
+  mutate(origin=ifelse(as.numeric(gsub("B", "", sample))>55, "Japan", "Switzerland")) # TODO add to parser
 ```
+
+```{r}
+library(data.table)
+fwrite(all_genes_df_filt, "../../../results/tmp_results/genes_df_filt.tsv", 
+            sep="\t", quote=F, row.names = F)
+```
+
 
 ```{r}
 library(ggvenn)

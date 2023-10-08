@@ -7,21 +7,19 @@ print("set path to data")
 print(paste("path to data:", unlist(snakemake@input["spacers_mtdata"])))
 print(paste("path to data:", unlist(snakemake@input["clust_filtered"])))
 print(paste("path to data:", unlist(snakemake@input["all_blastout"])))
-print(paste("path to data:", unlist(snakemake@input["binning_data"])))
+print(paste("path to data:", unlist(snakemake@input["viral_metadata"])))
 print(paste("path to data:", unlist(snakemake@input["pro"])))
 
 spacer_mtdata_p<- paste(unlist(snakemake@input["spacers_mtdata"]), "PerSpacer_CRISPR_v1.csv", sep="/")
 clust_info_p<- unlist(snakemake@input["clust_filtered"])
 blastout_p<- unlist(snakemake@input["all_blastout"])
-binning_data_p<-unlist(snakemake@input["binning_data"])
+viral_metadata_p<-unlist(snakemake@input["binning_data"])
 fastani_p<- unlist(snakemake@input["pro"])
 
 # read and format binning data
 print("read and format binning data")
-binning_data<- read.csv(binning_data_p, header=T, sep="\t") %>%
-  filter(filtered=="yes")
-bin_cont<- setNames(binning_data$bin, binning_data$contig)
-bin_cont<-bin_cont[unique(names(bin_cont))]
+viral_metadata<- fread(viral_metadata_p) %>%
+  filter(retained=="yes")
 
 # read and format spacer metadata
 print("read and format spacer metadata")
@@ -47,6 +45,14 @@ spacer_mtdata<- read.csv(spacer_mtdata_p, header=T, sep=";") %>%
                        "id", corr="genome", Strain),
          genome_type=ifelse(grepl("MAG", Strain), "MAG", "Isolate")) %>%
   distinct(SpacerSeq, id, .keep_all = TRUE)
+
+false_positive_spacers<- spacer_mtdata %>% group_by(genus, id) %>%
+  reframe(genome_w_spacers=length(unique(Strain)),
+            freq_gen_w_s=genome_w_spacers/secondary_cluster_n) %>%
+  filter(freq_gen_w_s<0.1) %>%
+  pull(id) %>% unique()
+
+spacer_mtdata<- spacer_mtdata %>% filter(! id %in% false_positive_spacers)
 
 # read and format blastout
 print("read and format blastout")
@@ -84,17 +90,18 @@ blastout_filt_mine<- blastout_filt %>%
 
 ## spacers host is the full table, also with contig that have not be classified
 print("spacers host is the full table, also with contig that have not be classified")   
-bin_red<- binning_data %>% select(contig, quality, bin, length)
+bin_red<- viral_metadata %>% select(genome_id, identification_tools_quality, checkv_quality, bin_length) %>%
+  distinct()
 
 spacers_host<- blastout_filt_mine %>% 
   select(Query, id, genus, Strain,  genome_type, spacer_origin) %>%
-  full_join(., bin_red, by=c("Query"="contig")) %>%
-  mutate(binned=ifelse(grepl("bin", bin), "yes", "no"),
+  filter(! id %in% false_positive_spacers) %>%
+  full_join(., bin_red, by=c("Query"="genome_id")) %>%
+  mutate(binned=ifelse(grepl("vBin", Query), "yes", "no"),
          Strain=ifelse(is.na(Strain), "unclassified", Strain),
          genus=ifelse(is.na(genus), "unclassified", genus),
          id=ifelse(is.na(id), "unclassified", id)) %>%
-  group_by(bin) %>%
-  mutate(bin_size=length(unique(Query))) 
+  group_by(Query) 
 
 
 # open and format fastani host assignation
@@ -124,24 +131,33 @@ fastani<- fread(fastani_p, sep="\t",
                        "id", corr="genome", bacteria),
          genus=get_mtdata(mtdata_path=clust_info_p,
                           "genus", corr="genome", bacteria),
-         state=ifelse(breadth>0.8, "integrated", "uncertain")) 
+         state=ifelse(breadth>0.8, "integrated", "uncertain")) %>% 
+  filter(breadth>=0.5)
 
 # Merge Host Data
 print("Merge Host Data")
 spacers_host_red<- spacers_host %>% ungroup() %>%
-  select(Query, Strain, genus, id, bin) %>%
-  mutate(assign_type=ifelse(genus=="unclassified", "None", "CRISPR")) %>%
+  select(Query, Strain, genus, id) %>%
+  mutate(detection=ifelse(genus=="unclassified", "None", "CRISPR"),
+  state="uncertain") %>%
   rename("virus"=Query, "bacteria"=Strain)
 
 fastani_red<-fastani %>%
-  select(Query, bacteria, genus, id)%>%
-  mutate(assign_type="identity",
-         bin=bin_cont[Query]) %>%
+  select(Query, bacteria, genus, id, state)%>%
+  mutate(detection="identity") %>%
   rename("virus"=Query)
 
-phage_host<- rbind(spacers_host_red, fastani_red) %>% group_by(virus, bacteria, genus, id) %>%
-  summarise(detection=ifelse(length(unique(assign_type)[!assign_type=="None"])<=1, unique(assign_type), "Both"),
-            bin=bin_cont[virus])
+prophage_contigs<- unique(fastani_red$virus)
+
+spacers_host_red<- spacers_host_red %>%
+  ungroup() %>%
+  filter(!(virus %in% prophage_contigs & detection =="None"))
+
+phage_host<- rbind(spacers_host_red, fastani_red) %>%
+  group_by(virus, bacteria, genus, id) %>%
+  summarise(detection=ifelse(all(c("CRISPR", "identity") %in% detection), "Both", unique(detection)),
+  state=ifelse("integrated" %in% state, "integrated", "uncertain"))
+  
 
 det<- phage_host %>% ungroup() %>% group_by(virus, genus) %>%
   summarise(score=ifelse(genus=="unclassified", 0, 1)) %>% group_by(virus) %>%

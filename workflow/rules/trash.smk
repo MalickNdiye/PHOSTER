@@ -321,3 +321,62 @@ rule quast_QC:
 #         "python {params.dvfdir}/dvf.py -i {input} -o {output.outdir} -c {threads}; "
 #         "dir=$(dirname {output.score}); mkdir -p ${{dir}}; "
 #         "mv {output.outdir}/{wildcards.sample}_concat_assembly.fasta_gt1bp_dvfpred.txt {output.score}"
+
+# rule dereplicate_viral_contigs_dRep:
+#     input:
+#         concat_cont="../scratch_link/viral_contigs/concat_single_genomes"
+#     output:
+#         derep_dir=directory("../results/assembly/viral_contigs/dereplicated/dRep"),
+#         drep_fasta="../results/assembly/viral_contigs/dereplicated/all_viral_contigs_concat_drep.fasta"
+#     resources:
+#         account="pengel_beemicrophage",
+#         runtime="24:00:00",
+#         mem_mb = 500000
+#     threads: 25
+#     conda:
+#         "envs/drep_env.yaml"
+#     log:
+#         "logs/polish_vMAGs/dereplication_dep.log"
+#     benchmark:
+#         "logs/polish_vMAGs/dereplication_dep.benchmark"
+#     shell:
+#         """
+#         mkdir -p {output.derep_dir}/data_tables
+#         touch {output.derep_dir}/data_tables/Bdb.csv
+#         echo "genome,location" > {output.derep_dir}/data_tables/Bdb.csv
+
+#         for file in {input}/*; do
+#             bs=$(basename ${{file}})
+#             abs=$(realpath ${{file}})
+
+#             if [[ "${{bs}}" != .* ]]; then
+#                 echo "${{bs}},${{abs}}" >> {output.derep_dir}/data_tables/Bdb.csv
+#             fi
+#         done
+
+#         dRep dereplicate {output.derep_dir} -p {threads} --multiround_primary_clustering --greedy_secondary_clustering --S_algorithm fastANI -nc .85 -sa .97 -l 3000 -N50W 0 -sizeW 1 --ignoreGenomeQuality --clusterAlg single
+#         find {output.derep_dir}/dereplicated_genomes/ -type f -exec cat {} \; > {output.drep_fasta}
+#         """
+
+rule parse_viral_contigs_dRep: # a few contigs are ignored by drep for some weird rson, let's put them back in the file
+    input:
+        derep_dir="../results/assembly/viral_contigs/dereplicated/dRep",
+        concat_cont=expand("../results/assembly/viral_contigs/concat/{sample}_viral_contigs_concat.fasta", sample=config["samples"]),
+        drep_fasta="../results/assembly/viral_contigs/dereplicated/all_viral_contigs_concat_drep.fasta"
+    output:
+        concat_cont_all=temp("../results/assembly/viral_contigs/concat/all_viral_contigs_concat_tmp.fasta"),
+        drep_fasta_final="../results/assembly/viral_contigs/dereplicated/all_viral_contigs_concat_drep2.fasta",
+        outtab="../results/assembly/viral_contigs/dereplicated/drep_name_changes.tsv"
+    resources:
+        account="pengel_beemicrophage",
+        runtime="01:00:00",
+        mem_mb = 20000
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/polish_vMAGs/dereplication_dep_parsing.log"
+    benchmark:
+        "logs/polish_vMAGs/dereplication_dep_parsing.benchmark"
+    shell:
+        "cat {input.concat_cont} > {output.concat_cont_all}; "
+        "python scripts/vMAGs/parse_drep_output.py -i {input.drep_fasta} -d {input.derep_dir} -c {output.concat_cont_all} -o {output.drep_fasta_final} -t "

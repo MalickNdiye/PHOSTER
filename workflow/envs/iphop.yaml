@@ -1,0 +1,12 @@
+name: iphop_env
+channels:
+ - defaults
+ - conda-forge
+ - bioconda
+ - rmg
+ - anaconda
+dependencies:
+ - python=3.8
+ - glibc
+ - perl
+ - iphop

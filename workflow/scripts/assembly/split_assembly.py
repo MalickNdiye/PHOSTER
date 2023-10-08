@@ -9,12 +9,12 @@ def split(fastafile, outfastadir   =   "splitoutput"):
 
     sample_name=fastafile.split("/")[-1].split("_")[0]
 
-    with open (fastafile) as FH:
+    with open(fastafile) as FH:
         record = SeqIO.parse(FH, "fasta")
         file_count =  0
 
         for seq_rec in record:
-            name= str(seq_rec.description)
+            name= str(seq_rec.id)
             file_count  =   file_count  +   1
             with open("%s/%s.fasta" % (outfastadir,str(name)), "w") as FHO:
                 SeqIO.write(seq_rec, FHO, "fasta")

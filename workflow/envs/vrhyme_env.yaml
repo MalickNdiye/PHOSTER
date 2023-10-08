@@ -1,0 +1,18 @@
+channels:
+  - bioconda
+  - defaults
+dependencies:
+  - vrhyme
+  - samtools
+  - mash
+  - mummer
+  - mmseqs2
+  - prodigal
+  - bowtie2
+  - bwa
+  - pandas
+  - numpy
+  - scikit-learn
+  - numba
+  - pysam == 0.15.2
+  - networkx

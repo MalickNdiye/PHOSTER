@@ -85,8 +85,6 @@ def get_binning_data(dir):
     mem_path=os.path.join(dir,mem_file)
     membership=pd.read_csv(mem_path,sep="\t")
     membership=membership.assign(sample=sample_name)
-    
-    
 
     # move sample to first column and rename scaffodl to contig
     membership=membership[["sample","scaffold", "bin"]]
@@ -125,16 +123,19 @@ def rename_contigs(assembly, filename, reference):
             # if it is, add a number to the end of the name that is a sum of all the numbers present in the original name
             new_name="{}_vcontig_{}".format(sample_name,"_".join(assembly_obj2[i].description.split("_")[0:6]))
             new_name=new_name+"_{}".format(sum([int(s) for s in re.findall(r'\d+', assembly_obj2[i].description)])+len(assembly_obj2[i].description))
+            new_name=re.sub(r"\|\|", "", new_name)
             assembly_obj2[i].id=new_name
             assembly_obj2[i].description=new_name
 
         elif "bin" in assembly_obj2[i].id:
             new_name=assembly_obj2[i].id
+            new_name=re.sub(r"\|\|", "", new_name)
             assembly_obj2[i].id=new_name
             assembly_obj2[i].description=new_name
 
         else:
             new_name="{}_vcontig_{}".format(sample_name,"_".join(assembly_obj2[i].description.split("_")[0:6]))
+            new_name=re.sub(r"\|\|", "", new_name)
             assembly_obj2[i].id=new_name
             assembly_obj2[i].description=new_name
 
@@ -217,6 +218,7 @@ def filter_assembly(assembly):
     # or have len > 2999 according to metadata 
     assembly_fasta=[x for x in assembly_fasta if len(x.seq)>2999 or x.description in binned_contigs]
     assembly_fasta=[x for x in assembly_fasta if x.description in dereplicated_contigs]
+    assembly_fasta=[x for x in assembly_fasta if len(x.seq)<500000] # remove contigs >500kb (probably bacterial)
     retained_contigs=[x.description for x in assembly_fasta]
 
     # write filtered assembly to file

@@ -1,0 +1,11 @@
+name: DF-env
+channels:
+  - conda-forge
+  - bioconda
+  - anaconda
+dependencies:
+ - hmmer
+ - pip
+ - pip: # there is a bug I don't understand with the most recent version of pip (21.4): it cannot install defense-finder, with this version it works
+   - mdmparis-defense-finder
+   - colorlog
