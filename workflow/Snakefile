@@ -12,21 +12,28 @@ core_genera=["Bombilactobacillus" , "Commensalibacter", "Lactobacillus","Bifidob
 ################################################################################
 ######################### ALL #################################################
 ################################################################################
+type_of=["B", "P"]
+
+GENOMES,= glob_wildcards("../results/pangenomes/B/annotations/genes_faa/{genome}_genes.faa")
+GENUSES,= glob_wildcards("../results/pangenomes/B/mOTUpan/{genus}_pan.tsv")
+REF_GENOMES= glob_wildcards("../results/reference_db_filtered/dereplicated_genomes_filtered/{genome}")
+
 rule all:
     input:
-       "../results/Vcontact2/vCONTACT_results",
-       "../results/host_assigniation/spacers/all_CRISPRopenDB_report.txt",
-       "../results/host_assigniation/prophges/fastani_out.txt",
-       expand("../results/assembly/viral_contigs/filtered/{sample}_viral_contigs_filtered.fasta", sample=config["samples"]),
-       "../results/vMAG_binning/summary_table/aggregate_binning_data.tsv"
-        #expand("../results/vMAG_binning/vRhyme_bins/{asmbl}/", asmbl=config["samples"])
-        #expand("../results/MAG_binning/backmapping/merged_depths/{asmbl}_global_depth_vrhyme.txt", asmbl=config["samples"])
-        #expand("../results/viral_identification/virsorter/{sample}_virsorter/{sample}_virsorter_score.tsv", sample=config["samples"])
-        #get_vids
-        # expand("../results/MAG_binning/vBins/phamb/sample_annotation/{vSam}/{vSam}.hmmMiComplete105.tbl", vSam=IDS),
-        # expand("../results/MAG_binning/vBins/phamb/sample_annotation/{vSam}/{vSam}.hmmVOG.tbl", vSam=IDS),
-        # expand("../results/MAG_binning/vBins/phamb/sample_annotation/{vSam}/{vSam}_dvf/{vSam}.fna_gt2000bp_dvfpred.txt", vSam=IDS)
-       # expand("../results/inStrain/B/compare_B/compare_{genome}", genome=get_genomes("../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb"))
+        #expand("../results/host_assigniation/IPHOP/{sample}_iphop", sample=config["samples"])
+        #expand("../results/inStrain/compare_B/compare_B/compare_{genome}", genome=REF_GENOMES.genome),
+        #expand("../results/pangenomes/B/mOTUpan/" + "{genus}" + "_pan.tsv", genus=core_genera)
+        #expand("../results/pangenomes/B/defense_systems/{genome}", type=type_of , genome=GENOMES),
+        expand("../results/inStrain/profile_{type}/{sample}{type}_profile/", type=type_of, sample=config["sam_names"])
+        # expand("../results/vMAG_binning/vRhyme_bins/{asmbl}/", asmbl=config["samples"]),
+        # "../results/vMAG_binning/summary_tables/all_viral_contigs_metadata.tsv",
+        # "../results/assembly/viral_contigs/dereplicated/all_genomes_alignment",
+        # "../results/vMAG_binning/summary_tables/all_viral_contigs_dereplication.tsv",
+        # "../results/Vcontact2/vCONTACT_results",
+        # "../results/host_assigniation/summary_table/phage_host.tsv",
+        # "../results/viral_classification/vcontact/vcontact_ntw_filtered.tsv",
+        # expand("../results/assembly/viral_contigs/QC_filtered/{sample}_viral_contigs_filtered.fasta", sample=config["samples"])
+
 
 ##################################################################
 
@@ -683,6 +690,28 @@ rule classify_gtdbtk:
         "export GTDBTK_DATA_PATH={params.db}; "
         "gtdbtk classify_wf --genome_dir {input.filtered_mags} --extension fa --out_dir {output.class_out} --cpus {threads}"
 
+rule classify_gtdbtk_all:
+    input:
+        filtered_mags="../scratch_link/reference_genomes_redundant"
+    output:
+        class_out=directory("../results/MAG_binning/gtdbtk_classification_allGenomesTree/")
+    log:
+        "logs/MAGs/gtdbtk/gtdbtk_classification_all.log"
+    benchmark:
+        "logs/MAGs/gtdbtk/gtdbtk_classification_all.benchmark"
+    threads: 25
+    conda:
+        "envs/gtdbk_env.yaml"
+    params:
+        db="resources/default_DBs/gtdbtk-2.1.1/db"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 150000,
+        runtime= "10:00:00"
+    shell:
+        "export GTDBTK_DATA_PATH={params.db}; "
+        "gtdbtk de_novo_wf --genome_dir {input.filtered_mags} --bacteria --outgroup_taxon p__Patescibacteria --force --extension fa --out_dir {output.class_out} --cpus {threads}"
+
 
 ################################################################################
 ########################## Bacterial Reference Database ########################
@@ -701,7 +730,7 @@ rule aggregate_refs:
         filtered_mags="../results/MAG_binning/bins/filtered_mags/",
         refs_isolates="../data/reference_assemblies/hb_bacteria/non_redundant/single_genomes/contigs/"
     output:
-        all_refs=temp("../scratch_link/reference_genomes_redundant/")
+        all_refs=directory("../scratch_link/reference_genomes_redundant/")
     log:
         "logs/ref_db/aggregate.log"
     threads: 2
@@ -717,8 +746,10 @@ rule aggregate_refs:
 # This rule runs dRep for 95% dereplication
 rule run_dRep:
     input:
-        all_refs="../scratch_link/reference_genomes_redundant/"
+        filtered_mags="../results/MAG_binning/bins/filtered_mags/",
+        refs_isolates="../data/reference_assemblies/hb_bacteria/non_redundant/single_genomes/contigs/"
     output:
+        tmp_all=temp(directory("../scratch_link/reference_genomes_redundant_fordRep/")),
         drep_out=directory("../results/reference_db/")
     log:"logs/ref_db/dRep.log"
     benchmark:"logs/ref_db/dRep.benchmark"
@@ -732,10 +763,13 @@ rule run_dRep:
         mem_mb = 100000,
         runtime= "04:00:00"
     shell:
-        "dRep dereplicate {output.drep_out} -g {input.all_refs}/* --clusterAlg single --completeness {params.compl} -p {threads}"
+        "mkdir -p {output.tmp_all}; "
+        "cp {input.filtered_mags}/*.fa {output.tmp_all}; "
+        "cp {input.refs_isolates}/*.fna {output.tmp_all}; "
+        "dRep dereplicate {output.drep_out} -g {output.tmp_all}/* --clusterAlg single --completeness {params.compl} -p {threads}"
 
 # This rule aggreagtes dRep data with checkm and gtdb-TK data to obtain some summary tables
-rule parse_dRep:
+checkpoint parse_dRep:
     input:
         checkm_filt="../results/MAG_binning/checkm_QC/summary/filtered_MAGs_stats.tsv",
         gtdb_dir="../results/MAG_binning/gtdbtk_classification/",
@@ -790,7 +824,7 @@ rule filter_dRep_db:
 #and a fasta file of the phages sequences is extracted :
 #   (1): PHAGES id tools
 #   (1.1) concat assembly
-#   (1.2) run phage id tools (virstorter, viralverify, deepvirfinder, vibrant)
+#   (1.2) run phage id tools (virsorter2, viralverify, deepvirfinder, vibrant)
 #   (2) : Parsing outputs
 #   (3): Run ChecV
 ################################################################################
@@ -801,7 +835,7 @@ rule concat_assembly:
     input:
         assemblies= expand("../results/assembly/HF_assembly/{assembler}/{{sample}}_{assembler}/{{sample}}_contigs_parsed.fasta", assembler=assemblers),
     output:
-        concat_assembly = temp("../results/assembly/concat_assembly/{sample}_concat_assembly.fasta")
+        concat_assembly = "../results/assembly/concat_assembly/{sample}_concat_assembly.fasta"
     log:
         "logs/assembly/concat_assembly/{sample}_concat.log"
     resources:
@@ -924,7 +958,7 @@ rule extract_viral_contigs:
         all_scores ="../results/viral_identification/ViralIdentification_scores.tsv",
         concat_assembly = "../results/assembly/concat_assembly/{sample}_concat_assembly.fasta"
     output:
-       temp("../results/assembly/viral_contigs/single_sample/{sample}_viral_contigs.fasta")
+        "../results/assembly/viral_contigs/single_sample/{sample}_viral_contigs.fasta"
     log:
         "logs/viral_identification/extract_viruses/{sample}_viral_contigs.log"
     resources:
@@ -938,29 +972,29 @@ rule extract_viral_contigs:
         "python scripts/viral_identification/extract_viruses_from_assembly.py {input.concat_assembly} {input.all_scores} {output}"
 
 ##################################### (3) ######################################
-rule run_checkv:
-    input:
-        assembly = "../results/assembly/viral_contigs/single_sample/{sample}_viral_contigs.fasta"
-    output:
-        trimmed="../results/assembly/viral_contigs/single_sample/{sample}_viral_contigs_trimmed.fasta",
-        tab="../results/viral_identification/checkv/{sample}_checkv_quality_summary.tsv"
-    log:
-        "logs/viral_identification/checkv/{sample}_checkv.log"
-    params:
-        outdir = directory("../scratch_link/viral_identification/checkv/{sample}/"),
-        db="resources/default_DBs/checkv-db-v1.5/"
-    resources:
-        account="pengel_beemicrophage",
-        mem_mb= 100000,
-        runtime = "04:00:00"
-    threads:20
-    conda:
-        "envs/checkv.yaml"
-    shell:
-        "mkdir -p {params.outdir}; "
-        "checkv end_to_end {input.assembly} {params.outdir} -t {threads} -d {params.db}; "
-        "mv {params.outdir}/quality_summary.tsv {output.tab}; "
-        "cat {params.outdir}/viruses.fna {params.outdir}/proviruses.fna > {output.trimmed}"
+# rule run_checkv:
+#     input:
+#         assembly = "../results/assembly/viral_contigs/single_sample/{sample}_viral_contigs.fasta"
+#     output:
+#         trimmed="../results/assembly/viral_contigs/single_sample/{sample}_viral_contigs_trimmed.fasta",
+#         tab="../results/viral_identification/checkv/{sample}_checkv_quality_summary.tsv"
+#     log:
+#         "logs/viral_identification/checkv/{sample}_checkv.log"
+#     params:
+#         outdir = directory("../scratch_link/viral_identification/checkv/{sample}/"),
+#         db="resources/default_DBs/checkv-db-v1.5/"
+#     resources:
+#         account="pengel_beemicrophage",
+#         mem_mb= 100000,
+#         runtime = "04:00:00"
+#     threads:20
+#     conda:
+#         "envs/checkv.yaml"
+#     shell:
+#         "mkdir -p {params.outdir}; "
+#         "checkv end_to_end {input.assembly} {params.outdir} -t {threads} -d {params.db}; "
+#         "mv {params.outdir}/quality_summary.tsv {output.tab}; "
+#         "cat {params.outdir}/viruses.fna {params.outdir}/proviruses.fna > {output.trimmed}"
 
 
 ####################################################################################
@@ -975,7 +1009,7 @@ rule run_checkv:
 # This rule builds a mapping index for each sample
 rule build_backmapping_index_viruses:
     input:
-        ref="../results/assembly/viral_contigs/single_sample/{asmbl}_viral_contigs_trimmed.fasta"
+        ref="../results/assembly/viral_contigs/single_sample/{asmbl}_viral_contigs.fasta"
     output:
         dir=directory("../results/assembly/viral_contigs/indexes/{asmbl}_viral_contigs/{asmbl}_viral_contigs_index")
     conda:
@@ -994,13 +1028,13 @@ rule build_backmapping_index_viruses:
         "bowtie2-build {input.ref} {output.dir}/{params.basename} --threads {threads}"
 
 # This rule uses bowtie2 to map reads to the viral contigs
-rule backmapping_viral: 
+rule backmapping_viral:
     input:
         assembly = "../results/assembly/viral_contigs/indexes/{asmbl}_viral_contigs/{asmbl}_viral_contigs_index", # we bin only bacteria
         R1 = "../data/host_filtered_reads/{sample}_R1_HF.fastq.gz",
         R2 = "../data/host_filtered_reads/{sample}_R2_HF.fastq.gz"
     output:
-        sam=temp("../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{asmbl}_viral_contigs_trimmed.sam")
+        sam=temp("../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{asmbl}_viral_contigs.sam")
     resources:
         account="pengel_beemicrophage",
         runtime="10:00:00",
@@ -1010,17 +1044,18 @@ rule backmapping_viral:
     threads: 15
     log:
         "../scratch_link/logs/{sample}_to_{asmbl}_back.log"
-    conda: "envs/map_env.yaml"
+    conda: 
+        "envs/map_env.yaml"
     shell:
         "bowtie2 -x {input.assembly}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --threads {threads}"
 
 # This rule takes the bam file and creates a depth file
 rule backmapping_depths_viral:
     input:
-        sam= "../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{asmbl}_viral_contigs_trimmed.sam"
+        sam= "../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{asmbl}_viral_contigs.sam"
     output:
-        bam= temp("../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{asmbl}_viral_contigs_trimmed.bam"),
-        depth= temp("../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{asmbl}_viral_contigs_trimmed.depth")
+        bam= temp("../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{asmbl}_viral_contigs.bam"),
+        depth= temp("../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{asmbl}_viral_contigs.depth")
     resources:
         account="pengel_beemicrophage",
         runtime="01:30:00",
@@ -1028,7 +1063,8 @@ rule backmapping_depths_viral:
     params:
         tmp="../scratch_link/tmp"
     threads: 15
-    conda: "envs/sam_env.yaml"
+    conda: 
+        "envs/sam_env.yaml"
     log:
         "../scratch_link/logs/{sample}_to_{asmbl}_back_depth.log"
     shell:
@@ -1037,17 +1073,18 @@ rule backmapping_depths_viral:
         "jgi_summarize_bam_contig_depths --outputDepth {output.depth} {output.bam}"
 
 # This rule merges the depth files
-rule merge_depths_viral:
-    input:
-        depth_files = expand("../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{{asmbl}}_viral_contigs_trimmed.depth", sample=config["samples"])
+rule merge_depths_viral: 
+    input: 
+        depth_files = expand("../scratch_link/vMAG_binning/backmapping/{sample}/{sample}_mapped_to_{{asmbl}}_viral_contigs.depth", sample=config["samples"])
     output:
-        depth_file_merged = "../results/vMAG_binning/backmapping/merged_depths/{asmbl}_global_viral_depth.txt"
+        depth_file_merged="../results/vMAG_binning/backmapping/merged_depths/{asmbl}_global_viral_depth.txt"
     resources:
         account="pengel_beemicrophage",
         runtime="1:00:00",
         mem_mb = 10000
     threads: 1
-    conda: "envs/mags_env.yaml"
+    conda: 
+        "envs/mags_env.yaml"
     log:
         "logs/vMAGs/backmapping/depth/{asmbl}_merge_depth.log"
     shell:
@@ -1078,7 +1115,7 @@ rule covert_depths:
 # this rule runs vRhyme
 rule run_vRhyme:
     input:
-        assembly="../results/assembly/viral_contigs/single_sample/{asmbl}_viral_contigs_trimmed.fasta",
+        assembly="../results/assembly/viral_contigs/single_sample/{asmbl}_viral_contigs.fasta",
         depth_file = "../results/vMAG_binning/backmapping/merged_depths/{asmbl}_global_depth_vrhyme.txt"
     output:
         out= directory("../results/vMAG_binning/vRhyme_bins/{asmbl}/")
@@ -1104,62 +1141,8 @@ rule run_vRhyme:
             rm -rf {output}/vRhyme_alternate_bins
         """
 
-# this rule parses the vRhyme output
-rule parse_vRhyme:
-    input:
-        assembly="../results/assembly/viral_contigs/single_sample/{sample}_viral_contigs_trimmed.fasta",
-        bins="../results/vMAG_binning/vRhyme_bins/{sample}",
-        vi="../results/viral_identification/ViralIdentification_scores.tsv"
-    output:
-        filtered_cont="../results/assembly/viral_contigs/filtered/{sample}_viral_contigs_filtered.fasta",
-        concat_cont="../results/assembly/viral_contigs/concat/{sample}_viral_contigs_concat.fasta",
-        binning_data=temp("../results/vMAG_binning/summary_table/{sample}_binning_data.tsv"),
-        filtering_data=temp("../results/vMAG_binning/summary_table/{sample}_filtering_data.tsv")
-    resources:
-        account="pengel_beemicrophage",
-        runtime="1:00:00",
-        mem_mb = 100000
-    threads: 1
-    conda:
-        "envs/mOTUpan.yaml"
-    log:
-        "logs/vMAGs/vRhyme/{sample}_parsing.log"
-    benchmark:
-        "logs/vMAGs/vRhyme/{sample}_parsing.benchmark"
-    shell:
-        "python scripts/vMAGs/parse_binning.py -i {input.assembly} -b {input.bins} -v {input.vi} -f {output.filtered_cont} -c {output.concat_cont} -r {output.binning_data} -t {output.filtering_data}"
-
-# this rule aggregates the vRhyme output
-rule aggregate_parsed_vrhyme:
-    input:
-        binning_data=expand("../results/vMAG_binning/summary_table/{sample}_binning_data.tsv", sample=config["samples"]),
-        filteing_data=expand("../results/vMAG_binning/summary_table/{sample}_filtering_data.tsv", sample=config["samples"])
-    output:
-        all_bin="../results/vMAG_binning/summary_table/aggregate_binning_data.tsv",
-        all_filt="../results/vMAG_binning/summary_table/aggregate_filtering_data.tsv"
-    resources:
-        account="pengel_beemicrophage",
-        runtime="1:00:00",
-        mem_mb = 10000
-    threads: 1
-    log:
-        "logs/vMAGs/vRhyme/aggregate_parsing.log"
-    benchmark:
-        "logs/vMAGs/vRhyme/aggregate_parsing.benchmark"
-    run:
-        import pandas as pd
-
-        binnings = [pd.read_csv(i, sep="\t") for i in input.binning_data]
-        binnings = pd.concat(binnings)
-
-        filterings = [pd.read_csv(i, sep="\t") for i in input.filteing_data]
-        filterings = pd.concat(filterings)
-
-        binnings.to_csv(output.all_bin, sep="\t", index=False)
-        filterings.to_csv(output.all_filt, sep="\t", index=False)
-
 ####################################################################################
-################################## POLISH vIRAL CONTIGS ############################
+################################## POLISH VIRAL CONTIGS ############################
 ####################################################################################
 # The foilowing rules will:
 
@@ -1169,9 +1152,231 @@ rule aggregate_parsed_vrhyme:
 ################################################################################
 ################################################################################
 
+# this rule bins the viral contigs using the bins from vRhyme
+rule bin_viral_contigs:
+    input:
+        assembly = "../results/assembly/viral_contigs/single_sample/{sample}_viral_contigs.fasta",
+        bins="../results/vMAG_binning/vRhyme_bins/{sample}"
+    output:
+        binned_fasta="../results/assembly/viral_contigs/binning/{sample}_viral_contigs_binned.fasta",
+        binning_data="../results/vMAG_binning/summary_tables/{sample}_binning_data.tsv"
+    resources:
+        account="pengel_beemicrophage",
+        runtime="1:00:00",
+        mem_mb = 100000
+    threads: 1
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/vMAGs/vRhyme/{sample}_binning_fasta.log"
+    shell:
+        "python scripts/vMAGs/bin_contigs.py -i {input.assembly}  -d {input.bins} -f {output.binned_fasta} -t {output.binning_data}"
 
+# this rule runs checkV on the binned viral contigs
+rule run_checkv:
+    input:
+        assembly = "../results/assembly/viral_contigs/binning/{sample}_viral_contigs_binned.fasta"
+    output:
+        dir=temp(directory("../results/vMAG_binning/polishing/checkv_viral_contigs/{sample}_checkv")),
+        trimmed="../results/assembly/viral_contigs/trimmed/{sample}_viral_contigs_trimmed.fasta",
+        tab="../results/vMAG_binning/polishing/checkv/{sample}_checkv_quality_summary.tsv"
+    params:
+        db="resources/default_DBs/checkv-db-v1.5/"
+    resources:
+        account="pengel_beemicrophage",
+        mem_mb= 100000,
+        runtime = "02:00:00"
+    threads:20
+    conda:
+        "envs/checkv.yaml"
+    log:
+        "logs/polish_vMAGs/checkV/{sample}_checkV.log"
+    benchmark:
+        "logs/polish_vMAGs/checkV/{sample}_checkV.benchmark"
+    shell:
+        "checkv end_to_end {input.assembly} {output.dir} -t {threads} -d {params.db}; "
+        "mv {output.dir}/quality_summary.tsv {output.tab}; "
+        "cat {output.dir}/viruses.fna {output.dir}/proviruses.fna > {output.trimmed}"
 
+# this rule filters out contigs that are not viral (found with low confidence by only one tool, too long or too short)
+rule viral_contigs_quality_filtering:
+    input:
+        assembly="../results/assembly/viral_contigs/trimmed/{sample}_viral_contigs_trimmed.fasta",
+        binning_data="../results/vMAG_binning/summary_tables/{sample}_binning_data.tsv",
+        vi="../results/viral_identification/ViralIdentification_scores.tsv",
+        checkv="../results/vMAG_binning/polishing/checkv/{sample}_checkv_quality_summary.tsv"
+    output:
+        filtered_fasta="../results/assembly/viral_contigs/QC_filtered/{sample}_viral_contigs_filtered.fasta",
+        filtering_data=temp("../results/vMAG_binning/summary_tables/{sample}_viral_contigs_metadata.tsv")
+    resources:
+        account="pengel_beemicrophage",
+        runtime="1:00:00",
+        mem_mb = 100000
+    threads: 1
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/vMAGs/polishing/{sample}_filtering_vMAGs.log"
+    benchmark:
+        "logs/vMAGs/vRhyme/{sample}_filtering_vMAGs.benchmark"
+    shell:
+        "python scripts/vMAGs/parse_vMAGs_binning.py -i {input.assembly} -b {input.binning_data} -v {input.vi} -c {input.checkv} -f {output.filtered_fasta}  -t {output.filtering_data}" # TODO contigs that are trimmed like 10B_vBin_6_1 6260-11927/11927 do not end up in the final filtered file
+# TODO other example 69B_vBin_6_1 1-67153/288529 and 69B_vBin_6_2 161403-209164/288529. at this stage contigs that are not binned are still named after the original contigs. I should rename them to the bin name
 
+rule split_contigs_checkm:
+    input:
+        "../results/assembly/viral_contigs/QC_filtered/{sample}_viral_contigs_filtered.fasta",
+    output:
+        tmp_dir=temp(directory("../results/vMAG_binning/polishing/{sample}_single_genomes")),
+    resources:
+        account="pengel_beemicrophage",
+        runtime="0:30:00",
+        mem_mb = 8000
+    threads: 1
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/polish_vMAGs/checkm/{sample}_split_for_checkm.log"
+    shell:
+        "python scripts/assembly/split_assembly.py -f {input} -d {output}"
+
+rule checkm_viral_contigs:
+    input:
+        dir="../results/vMAG_binning/polishing/{sample}_single_genomes"
+    output:
+        dir=directory("../results/vMAG_binning/polishing/checkm/{sample}_checkm"),
+        file="../results/vMAG_binning/polishing/checkm/{sample}_checkm_stats.tsv"
+    log:
+        "logs/polish_vMAGs/checkm/{sample}_checkm.log"
+    benchmark:
+        "logs/polish_vMAGs/checkm/{sample}_checkm.benchmark"
+    threads: 25
+    params:
+        db="resources/default_DBs/checkm_db"
+    conda:
+        "envs/checkm_env.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 200000,
+        runtime= "04:00:00"
+    shell:
+        "export CHECKM_DATA_PATH={params.db}; "
+        "checkm lineage_wf {input} {output.dir} -x fasta -t {threads}; "
+        "checkm qa {output.dir}/lineage.ms {output.dir} -o 2 -f {output.file} --tab_table"
+
+rule filter_bacteria_from_viral_contigs:
+    input:
+        fasta="../results/assembly/viral_contigs/QC_filtered/{sample}_viral_contigs_filtered.fasta",
+        checkm="../results/vMAG_binning/polishing/checkm/{sample}_checkm_stats.tsv",
+        mtdata="../results/vMAG_binning/summary_tables/{sample}_viral_contigs_metadata.tsv"
+    output:
+        fasta_nobact="../results/assembly/viral_contigs/polished/{sample}_viral_contigs_filtered_nobact.fasta",
+        mtdata_nobact="../results/vMAG_binning/summary_tables/{sample}_viral_contigs_metadata_nobact.tsv"
+    resources:
+        account="pengel_beemicrophage",
+        runtime="0:30:00",
+        mem_mb = 8000
+    threads: 1
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/polish_vMAGs/checkm/{sample}_remove_bacteria.log"
+    shell:
+        "python scripts/vMAGs/filter_bacteria_from_viral_contigs.py -f {input.fasta} -c {input.checkm} -m {input.mtdata} -o {output.fasta_nobact} -t {output.mtdata_nobact}"
+
+rule dereplicate_viral_contigs:
+    input:
+        fasta=expand("../results/assembly/viral_contigs/polished/{sample}_viral_contigs_filtered_nobact.fasta", sample=config["samples"]),
+    output:
+        all_fasta="../results/assembly/viral_contigs/dereplicated/all_viral_contigs.fasta",
+        concat_cont_drep="../results/assembly/viral_contigs/dereplicated/all_viral_contigs_drep.fasta",
+        concat_cont_clst=temp("../results/assembly/viral_contigs/dereplicated/all_viral_contigs_drep.fasta.clstr")
+    resources:
+        account="pengel_beemicrophage",
+        runtime="04:00:00",
+        mem_mb = 200000
+    threads: 25
+    log:
+        "logs/polish_vMAGs/dereplication/drep.log"
+    benchmark:
+        "logs/polish_vMAGs/dereplication/drep.benchmark"
+    conda:
+        "envs/cd-hit.yaml"
+    shell:
+        "cat {input.fasta} > {output.all_fasta}; "
+        "cd-hit-est -i {output.all_fasta} -o {output.concat_cont_drep} -c 0.95 -aS 0.85 -M 0 -d 0 -T {threads}"
+
+rule align_viral_contigs:
+    input:
+        fasta="../results/assembly/viral_contigs/dereplicated/all_viral_contigs.fasta",
+    output:
+        directory("../results/assembly/viral_contigs/dereplicated/all_genomes_alignment")
+    resources:
+        account="pengel_beemicrophage",
+        runtime="01:00:00",
+        mem_mb = 200000
+    threads: 16
+    log:
+        "logs/polish_vMAGs/dereplication/align_viral_genomes.log"
+    benchmark:
+        "logs/polish_vMAGs/dereplication/align_viral_genomes.benchmark"
+    conda:
+        "envs/drep_env.yaml"
+    shell:
+        "python scripts/vMAGs/align_viral_contigs.py -i {input} -o {output} -t {threads}"
+
+rule parse_drep_viral_contigs:
+    input:
+        derep_fasta="../results/assembly/viral_contigs/dereplicated/all_viral_contigs_drep.fasta.clstr"
+    output:
+        "../results/vMAG_binning/summary_tables/all_viral_contigs_dereplication.tsv"
+    resources:
+        account="pengel_beemicrophage",
+        runtime="01:00:00",
+        mem_mb = 20000
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/polish_vMAGs/dereplication_parsing.log"
+    benchmark:
+        "logs/polish_vMAGs/dereplication_parsing.benchmark"
+    shell:
+        "python scripts/vMAGs/parse_cdhit.py -i {input} -o {output}" 
+
+rule aggreagte_polishing_tables:
+    input:
+        checkv= expand("../results/vMAG_binning/polishing/checkv/{sample}_checkv_quality_summary.tsv", sample=config["samples"]),
+        checkm= expand("../results/vMAG_binning/polishing/checkm/{sample}_checkm_stats.tsv", sample=config["samples"]),
+        mtdata_nobact=expand("../results/vMAG_binning/summary_tables/{sample}_viral_contigs_metadata_nobact.tsv", sample=config["samples"]),
+        drep="../results/vMAG_binning/summary_tables/all_viral_contigs_dereplication.tsv"
+    output:
+        all_checkv="../results/vMAG_binning/polishing/checkv/all_checkv_quality_summary.tsv",
+        all_checkm="../results/vMAG_binning/polishing/checkm/all_checkm_stats.tsv",
+        all_mtdata_nobact="../results/vMAG_binning/summary_tables/all_viral_contigs_metadata.tsv"
+    resources:
+        account="pengel_beemicrophage",
+        runtime="01:00:00",
+        mem_mb = 20000
+    log:
+        "logs/polish_vMAGs/aggregrate_polishing_tables.log"
+    benchmark:
+        "logs/polish_vMAGs/aggregrate_polishing_tables.benchmark"
+    run:
+        import pandas as pd
+        # open drep
+        drep=pd.read_csv(input.drep, sep="\t")
+        # keep only rows where reference=True
+        drep=drep[drep["reference"]==True]
+        # store contig_id in a list
+        drep_contigs=drep["contig_id"].tolist()
+        checkV=concat_tables(input.checkv)
+        checkM=concat_tables(input.checkm)
+        mtdata_nobact=concat_tables(input.mtdata_nobact)
+        checkV.to_csv(output.all_checkv, sep="\t", index=False)
+        checkM.to_csv(output.all_checkm, sep="\t", index=False)
+        # add column "reference" to mtdata_nobact
+        mtdata_nobact["reference"]=mtdata_nobact["genome_id"].isin(drep_contigs)
+        mtdata_nobact.to_csv(output.all_mtdata_nobact, sep="\t", index=False)
 
 
 ####################################################################################
@@ -1184,11 +1389,9 @@ rule aggregate_parsed_vrhyme:
 # this rule split the contigs into single genomes fasta files
 rule split_contig:
     input:
-        concat=expand("../results/assembly/viral_contigs/concat/{sample}_viral_contigs_concat.fasta", sample=config["samples"]),
-        filt=expand("../results/assembly/viral_contigs/filtered/{sample}_viral_contigs_filtered.fasta", sample=config["samples"])
+        filt=expand("../results/assembly/viral_contigs/polished/{sample}_viral_contigs_filtered_nobact.fasta", sample=config["samples"])
     output:
-        concat_dir=temp(directory("../scratch_link/viral_contigs/concat_single_genomes/")),
-        filt_dir=temp(directory("../scratch_link/viral_contigs/filtred_single_genomes/"))
+        filt_dir=temp(directory("../scratch_link/viral_contigs/single_genomes/"))
     resources:
         account="pengel_beemicrophage",
         runtime="0:30:00",
@@ -1200,10 +1403,6 @@ rule split_contig:
         "logs/vMAGs/split_contigs.log"
     shell:
         """
-        for file in {input.concat} ; do
-            python scripts/assembly/split_assembly.py -f $file -d {output.concat_dir}
-        done
-
         for file in {input.filt} ; do
             python scripts/assembly/split_assembly.py -f $file -d {output.filt_dir}
         done
@@ -1211,11 +1410,10 @@ rule split_contig:
 
 rule prodigal_concat_bins:
     input:
-        fasta=expand("../results/assembly/viral_contigs/concat/{sample}_viral_contigs_concat.fasta", sample=config["samples"])
+        agg_fasta="../results/assembly/viral_contigs/dereplicated/all_viral_contigs_drep.fasta",
     output:
-        agg_fasta=temp("../results/assembly/viral_contigs/concat/all_viral_contigs_concat.fasta"),
-        proteins = "../results/assembly/viral_contigs/annotations/all_viral_contigs_concat.faa",
-        genes = "../results/assembly/viral_contigs/annotations/all_viral_contigs_concat.fna"
+        proteins = "../results/assembly/viral_contigs/annotations/all_viral_contigs_drep.faa",
+        genes = "../results/assembly/viral_contigs/annotations/all_viral_contigs_drep.fna"
     threads: 1
     conda:
         "envs/prodigal.yaml"
@@ -1226,12 +1424,11 @@ rule prodigal_concat_bins:
     log:
         "logs/vMAGs/annotations/prodigal.log"
     shell:
-        "cat {input.fasta} > {output.agg_fasta}; "
-        "prodigal -i {output.agg_fasta} -d {output.genes} -a {output.proteins} -p meta -g 11"
+        "prodigal -i {input.agg_fasta} -d {output.genes} -a {output.proteins} -p meta -g 11"
 
 rule gene_2_genome:
     input:
-        all_vprot = "../results/assembly/viral_contigs/annotations/all_viral_contigs_concat.faa"
+        all_vprot = "../results/assembly/viral_contigs/annotations/all_viral_contigs_drep.faa"
     output:
         gene_2_genome = "../results/Vcontact2/gene_to_genome.csv"
     threads: 1
@@ -1248,7 +1445,7 @@ rule gene_2_genome:
 
 rule run_vcontact:
     input:
-        all_vprot = "../results/assembly/viral_contigs/annotations/all_viral_contigs_concat.faa",
+        all_vprot = "../results/assembly/viral_contigs/annotations/all_viral_contigs_drep.faa",
         gene_2_genome = "../results/Vcontact2/gene_to_genome.csv"
     output:
         directory("../results/Vcontact2/vCONTACT_results")
@@ -1344,7 +1541,7 @@ rule create_spacersDB:
 ###################################### 2 ########################################
 rule assign_host:
     input:
-        phageDB="../results/assembly/viral_contigs/filtered/{sample}_viral_contigs_filtered.fasta",
+        phageDB="../results/assembly/viral_contigs/polished/{sample}_viral_contigs_filtered_nobact.fasta",
         spacers_db="../results/spacers_db/spacersDB/"
     output:
         blastout=temp("../results/host_assigniation/{sample}_host/spacers_{sample}_blastout.txt"),
@@ -1395,7 +1592,7 @@ rule fastani_prophages:
     input:
         mags="../results/MAG_binning/bins/filtered_mags",
         isolates="../data/reference_assemblies/hb_bacteria/non_redundant/single_genomes/contigs",
-        viruses="../scratch_link/viral_contigs/filtred_single_genomes/"
+        viruses="../scratch_link/viral_contigs/single_genomes/"
     output:
         "../results/host_assigniation/prophges/fastani_out.txt"
     threads: 15
@@ -1417,7 +1614,36 @@ rule fastani_prophages:
         "fastANI --ql {params.vir_l} --rl {params.mags_l} -t {threads} --fragLen 3000 -o {output}; "
         "rm {params.mags_l} {params.vir_l}"
 
+###################################### IPHOP ########################################
+rule run_iphop:
+    input:
+        phage_fasta="../results/assembly/viral_contigs/polished/{sample}_viral_contigs_filtered_nobact.fasta",
+    output:
+        outdir=directory("../results/host_assigniation/IPHOP/{sample}_iphop")
+    log:
+        "logs/assign_host/iphop/assign_host_{sample}.log"
+    benchmark:
+        "logs/assign_host/iphop/assign_host_{sample}.benchmark"
+    threads: 12
+    params:
+        DB="resources/db2/iphop_mine_rw/",
+        old_DB="resources/db2/iphop/Sept_2021_pub_rw",
+        container="resources/db2/containers/iphop-latest.simg"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 200000,
+        runtime= "04:00:00"
+    shell:
+        """
+        in=$(realpath {input.phage_fasta})
+        out=$(realpath {output.outdir})
+        db=$(realpath {params.DB})
+        old_db=$(realpath {params.old_DB})
 
+        mkdir -p $out
+        
+        singularity run -B $in,$db,$out,$old_db {params.container} predict --fa_file $in --db_dir $db --out_dir $out -t {threads}
+        """
 ###################################### 4 ########################################
 rule parse_host_assignation:
     input:
@@ -1425,7 +1651,7 @@ rule parse_host_assignation:
         pro="../results/host_assigniation/prophges/fastani_out.txt",
         spacers_mtdata="../results/spacers_db/hb_spacers_parsed",
         clust_filtered="../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv",
-        binning_data="../results/vMAG_binning/summary_table/aggregate_filtering_data.tsv"
+        binning_data="../results/vMAG_binning/summary_tables/all_viral_contigs_metadata.tsv"
     output:
        formatted_spacers="../results/host_assigniation/summary_table/spacers_metadata.tsv",
        blastout_filt_complete="../results/host_assigniation/summary_table/spacers_blastout_filt_complete.tsv",
@@ -1442,144 +1668,281 @@ rule parse_host_assignation:
         mem_mb = 100000,
         runtime= "00:30:00"
     script:
-        "scripts/assign_host/parse_host_assignation.R"
+        "scripts/assign_host/parse_host_assignation.R" # TODO run again
 
-################################################################################
-######################### BACTERIA PANGENOME ANALYISIS #########################
-#Once our database is well curated, we can TODO
-###############################################################################
-
-rule find_genomes_cluster:
+rule parse_vcontact_ntw:
     input:
-        clust_info="../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv",
-        filtered_mags="../results/MAG_binning/bins/filtered_mags/",
-        refs_isolates="../data/reference_assemblies/hb_bacteria/non_redundant/single_genomes/contigs/"
+        formatted_spacers="../results/host_assigniation/summary_table/spacers_metadata.tsv",
+        phage_host="../results/host_assigniation/summary_table/phage_host.tsv",
+        vcont_dir="../results/Vcontact2/vCONTACT_results"
     output:
-        paths="../results/pangenomes/{type}/{genus}_paths.txt",
-        tmp_db=temp(directory("../scratch_link/tmp_ref/reference_genomes_{type}_tmp_{genus}/"))
+        ph_vcont="../results/viral_classification/vcontact/phage_host_vcontact.tsv",
+        vcont_ntw="../results/viral_classification/vcontact/vcontact_ntw.tsv",
+        vcont_ntw_filt="../results/viral_classification/vcontact/vcontact_ntw_filtered.tsv"
     log:
-        "logs/{type}_pangenomes/{genus}/find_cluster_paths.log"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 2000,
-        runtime= "00:30:00"
-    shell:
-        "mkdir -p {output.tmp_db}; "
-        "cp {input.filtered_mags}/*.fa {output.tmp_db}; "
-        "cp {input.refs_isolates}/*.fna {output.tmp_db}; "
-        "python scripts/bacteria_pangenome/find_cluster_genomes.py {wildcards.genus} {output.tmp_db} {input.clust_info} {output.paths}"
-
-rule annotate_clusters:
-    input:
-        genus_paths="../results/pangenomes/{type}/{genus}_paths.txt",
-        tmp_db="../scratch_link/tmp_ref/reference_genomes_{type}_tmp_{genus}/"
-    output:
-        fnas=directory("../results/pangenomes/{type}/{genus}/genes_fna"),
-        faas=directory("../results/pangenomes/{type}/{genus}/genes_faa")
+        "logs/voiral_classification/vcontact/parse_vcontact_ntw.log"
     conda:
-        "envs/orthofinder.yaml"
-    log:
-        "logs/{type}_pangenomes/{genus}/prodiagal_annot.log"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 10000,
-        runtime= "00:30:00"
-    shell:
-        "mkdir -p {output.faas}; "
-        "mkdir -p {output.fnas}; "
-        "scripts/bacteria_pangenome/run_prod_annot_clusters.sh {output.fnas} {output.faas} {input.genus_paths}"
-
-rule run_orthofinder:
-    input:
-        faas="../results/pangenomes/{type}/{genus}/genes_faa",
-    output:
-        ortho_out=directory("../scratch_link/pangenomes/{type}/{genus}/orthofinder_output/")
-    conda:
-        "envs/orthofinder.yaml"
-    log:
-        "logs/{type}_pangenomes/{genus}/run_orthofinder.log"
-    params:
-        name="results",
-        ulim=40000
-    threads: 15
+        "envs/base_R_env.yaml"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 100000,
-        runtime= "24:00:00"
+        runtime= "00:30:00"
+    script:
+        "scripts/Viral_classification/parse_Vcontact2_ntw.R"
+
+################################################################################
+######################### PANGENOME ANALYISIS #########################
+#Once our database is well curated, we can TODO
+###############################################################################
+
+
+################################## BACTERIA ####################################
+
+# rule find_genomes_cluster:
+#     input:
+#         clust_info="../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv",
+#         filtered_mags="../results/MAG_binning/bins/filtered_mags/",
+#         refs_isolates="../data/reference_assemblies/hb_bacteria/non_redundant/single_genomes/contigs/"
+#     output:
+#         paths="../results/pangenomes/{type}/{genus}_paths.txt",
+#         tmp_db=temp(directory("../scratch_link/tmp_ref/reference_genomes_{type}_tmp_{genus}/"))
+#     log:
+#         "logs/{type}_pangenomes/{genus}/find_cluster_paths.log"
+#     resources:
+#         account = "pengel_beemicrophage",
+#         mem_mb = 2000,
+#         runtime= "00:30:00"
+#     shell:
+#         "mkdir -p {output.tmp_db}; "
+#         "cp {input.filtered_mags}/*.fa {output.tmp_db}; "
+#         "cp {input.refs_isolates}/*.fna {output.tmp_db}; "
+#         "python scripts/bacteria_pangenome/find_cluster_genomes.py {wildcards.genus} {output.tmp_db} {input.clust_info} {output.paths}"
+
+
+rule annotate_bacterial_genomes:
+    input:
+        genomes="../scratch_link/reference_genomes_redundant"
+    output:
+        fnas=directory("../results/pangenomes/B/annotations/genes_fna"),
+        faas=directory("../results/pangenomes/B/annotations/genes_faa")
+    conda:
+        "envs/orthofinder.yaml"
+    log:
+        "logs/B_pangenomes/prodiagal_annot.log" 
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "03:00:00"
+    shell:
+        "scripts/bacteria_pangenome/run_prod_annot_clusters.sh {output.fnas} {output.faas} {input.genomes}"
+
+
+
+# rule annotate_clusters:
+#     input:
+#         genus_paths="../results/pangenomes/{type}/{genus}_paths.txt",
+#         tmp_db="../scratch_link/tmp_ref/reference_genomes_{type}_tmp_{genus}/"
+#     output:
+#         fnas=directory("../results/pangenomes/{type}/{genus}/genes_fna"),
+#         faas=directory("../results/pangenomes/{type}/{genus}/genes_faa")
+#     conda:
+#         "envs/orthofinder.yaml"
+#     log:
+#         "logs/{type}_pangenomes/{genus}/prodiagal_annot.log"
+#     resources:
+#         account = "pengel_beemicrophage",
+#         mem_mb = 10000,
+#         runtime= "00:30:00"
+#     shell:
+#         "mkdir -p {output.faas}; "
+#         "mkdir -p {output.fnas}; "
+#         "scripts/bacteria_pangenome/run_prod_annot_clusters.sh {output.fnas} {output.faas} {input.genus_paths}"
+
+rule run_orthofinder:
+    input:
+        faas="../results/pangenomes/B/annotations/genes_faa",
+    output:
+        ortho_out=directory("../scratch_link/pangenomes/B/orthofinder_output/")
+    conda:
+        "envs/orthofinder.yaml"
+    log:
+        "logs/B_pangenomes/run_orthofinder.log"
+    params:
+        name="results",
+        ulim=2000000
+    threads: 46
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "72:00:00"
     shell:
         "ulimit -n {params.ulim}; "
-        "orthofinder  -f {input.faas} -o {output.ortho_out} -n {params.name} -t {threads}"
+        "orthofinder  -f {input.faas} -o {output.ortho_out} -n {params.name} -t {threads} -M msa"
 
-rule run_mOTUpan:
+rule parse_orthofinder:
     input:
-        faas="../results/pangenomes/{type}/{genus}/genes_faa",
-        ref_db="../results/reference_db"
+        indir="../results/pangenomes/B/orthofinder_output/",
+        clust_info="../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv"
     output:
-        pan="../results/pangenomes/{type}/{genus}/{genus}_mOTUpan.tsv",
-        chemck_out=temp("../results/pangenomes/{type}/{genus}/checkm_out_tab.tsv")
+        parsed="../results/pangenomes/B/parsed_orthofinder_output/summary_tables/Orthogroups_table.tsv"
     conda:
         "envs/mOTUpan.yaml"
     log:
-        "logs/{type}_pangenomes/{genus}/run_mOTUpan.log"
+        "logs/B_pangenomes/parse_orthofinder.log"
+    threads: 3
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "00:30:00"
+    shell:
+        "python scripts/pangenomes/parse_orthofinder.py -i {input.indir}/Results_results/Orthogroups -c {input.clust_info} -o {output.parsed}"
+
+rule parse_orthofinder_genus:
+    input:
+        parsed="../results/pangenomes/B/parsed_orthofinder_output/summary_tables/Orthogroups_table.tsv"
+    output:
+        genus_parsed=directory("../results/pangenomes/B/parsed_orthofinder_output/{genus}/")
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/B_pangenomes/parse_orthofinder_{genus}.log"
+    threads: 3
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "00:30:00"
+    shell:
+        "python scripts/pangenomes/parse_orthofinder_genus.py -i {input.parsed} -g {wildcards.genus} -o {output.genus_parsed}"
+
+rule run_mOTUpan:
+    input:
+        indir="../results/pangenomes/B/parsed_orthofinder_output/{genus}",
+        ref_db="../results/reference_db"
+    output:
+        pan="../results/pangenomes/B/mOTUpan/{genus}_pan.tsv",
+        chemck_out=temp("../results/pangenomes/B/mOTUpan/" + "{genus}_checkm_out_tab.tsv")
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/B_pangenomes/B/{genus}_mOTUpan.log"
     benchmark:
-        "logs/{type}_pangenomes/{genus}/run_mOTUpan.benchmark"
+        "logs/B_pangenomes/B/{genus}_mOTUpan.benchmark"
     threads: 15
     params:
-        boots=100,
-        tmp1="../results/pangenomes/{type}/{genus}/tmp1.tsv",
-        tmp2="../results/pangenomes/{type}/{genus}/tmp2.tsv"
+        boots=1000,
+        tmp1="../results/pangenomes/B/{genus}_tmp1.tsv",
+        tmp2="../results/pangenomes/B/{genus}_tmp2.tsv"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 100000,
         runtime= "03:00:00"
     shell:
-        """awk -F',' -v OFS=',' '{{ gsub(/.fa/,"_genes", $1); print }} ' {input.ref_db}/data_tables/Chdb.csv > {params.tmp1}; """
-        """awk -F',' -v OFS=',' '{{ gsub(/.fna/,"_genes", $1); print }} ' {params.tmp1} > {params.tmp2}; """
+        """awk -F',' -v OFS=',' '{{ gsub(/.fa/,"", $1); print }} ' {input.ref_db}/data_tables/Chdb.csv > {params.tmp1}; """
+        """awk -F',' -v OFS=',' '{{ gsub(/.fna/,"", $1); print }} ' {params.tmp1} > {params.tmp2}; """
         "sed -e 's/,/\t/g' {params.tmp2} > {output.chemck_out}; "
         "rm {params.tmp1} {params.tmp2}; "
-        "mOTUpan.py --faas {input.faas}/* --boots {params.boots} -o {output.pan} --checkm {output.chemck_out} --threads {threads}"
+        "mOTUpan.py -c {input.indir}/{wildcards.genus}_mOTUpan_table.tsv  -o {output.pan} --boots {params.boots} --checkm {output.chemck_out} --threads {threads}"
 
 
-rule single_OGs_diversity_parse:
+# rule single_OGs_diversity_parse:
+#     input:
+#         og="../scratch_link/pangenomes/{type}/{genus}/orthofinder_output/",
+#         clust_info="../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv"
+#     output:
+#         genus_OGs="../results/pangenomes/{type}/{genus}/{genus}_single_copy_OGs.tsv",
+#         isolates_OGs="../results/pangenomes/{type}/{genus}/isolates_{genus}_single_copy_OGs.tsv"
+#     log:
+#         "logs/{type}_pangenomes/{genus}/parse_singOG_isolates.log"
+#     params:
+#         genus=lambda wildcards: wildcards.genus
+#     threads: 3
+#     conda:
+#         "envs/drep_env.yaml"
+#     resources:
+#         account="pengel_beemicrophage",
+#         mem_mb=50000,
+#         runtime="00:30:00"
+#     script:
+#         "scripts/bacteria_pangenome/Find_genus_singleCopy_OGs.py"
+
+# rule single_OGs_diversity_aggregate:
+#     input:
+#         genus_OGs=expand("../results/pangenomes/{{type}}/{genus}/{genus}_single_copy_OGs.tsv", genus=core_genera),
+#         isolates_OGs=expand("../results/pangenomes/{{type}}/{genus}/isolates_{genus}_single_copy_OGs.tsv", genus=core_genera)
+#     output:
+#         all_genus_OGs="../results/pangenomes/{type}/all_single_copy_OGs.tsv",
+#         all_isolates_OGs="../results/pangenomes/{type}/all_isolates_single_copy_OGs.tsv"
+#     log:
+#         "logs/{type}_pangenomes/aggregate_singOG_isolates.log"
+#     threads: 3
+#     resources:
+#         account="pengel_beemicrophage",
+#         mem_mb=5000,
+#         runtime="00:30:00"
+#     shell:
+#         "echo -e 'Orthogroup\tgenome\tgene\tBin_Id\tsecondary_cluster\tspecies\tgenus\tsecondary_cluster_n' > {output.all_genus_OGs}; "
+#         "echo -e 'Orthogroup\tgenome\tgene\tBin_Id\tsecondary_cluster\tspecies\tgenus\tsecondary_cluster_n' > {output.all_isolates_OGs}; "
+#         "awk 'FNR>1' {input.genus_OGs} >> {output.all_genus_OGs}; "
+#         "awk 'FNR>1' {input.isolates_OGs} >> {output.all_isolates_OGs}"
+
+
+
+################################## Defense Systems ####################################
+
+rule DF_launch:
     input:
-        og="../scratch_link/pangenomes/{type}/{genus}/orthofinder_output/",
-        clust_info="../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv"
+        faa="../results/pangenomes/B/annotations/genes_faa/" + "{genome}_genes.faa"
     output:
-        genus_OGs="../results/pangenomes/{type}/{genus}/{genus}_single_copy_OGs.tsv",
-        isolates_OGs="../results/pangenomes/{type}/{genus}/isolates_{genus}_single_copy_OGs.tsv"
-    log:
-        "logs/{type}_pangenomes/{genus}/parse_singOG_isolates.log"
-    params:
-        genus=lambda wildcards: wildcards.genus
-    threads: 3
+        outdir=temp(directory("../results/pangenomes/B/defense_systems/{genome}"))
     conda:
-        "envs/drep_env.yaml"
-    resources:
-        account="pengel_beemicrophage",
-        mem_mb=50000,
-        runtime="00:30:00"
-    script:
-        "scripts/bacteria_pangenome/Find_genus_singleCopy_OGs.py"
-
-rule single_OGs_diversity_aggregate:
-    input:
-        genus_OGs=expand("../results/pangenomes/{{type}}/{genus}/{genus}_single_copy_OGs.tsv", genus=core_genera),
-        isolates_OGs=expand("../results/pangenomes/{{type}}/{genus}/isolates_{genus}_single_copy_OGs.tsv", genus=core_genera)
-    output:
-        all_genus_OGs="../results/pangenomes/{type}/all_single_copy_OGs.tsv",
-        all_isolates_OGs="../results/pangenomes/{type}/all_isolates_single_copy_OGs.tsv"
+        "envs/DF_env.yaml"
+    threads: 5
+    params:
+        model="resources/other_db/defensefinder_models"
     log:
-        "logs/{type}_pangenomes/aggregate_singOG_isolates.log"
-    threads: 3
+        "logs/B_pangenomes/defense_systems/{genome}_df.log"
     resources:
-        account="pengel_beemicrophage",
-        mem_mb=5000,
-        runtime="00:30:00"
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "01:00:00"
     shell:
-        "echo -e 'Orthogroup\tgenome\tgene\tBin_Id\tsecondary_cluster\tspecies\tgenus\tsecondary_cluster_n' > {output.all_genus_OGs}; "
-        "echo -e 'Orthogroup\tgenome\tgene\tBin_Id\tsecondary_cluster\tspecies\tgenus\tsecondary_cluster_n' > {output.all_isolates_OGs}; "
-        "awk 'FNR>1' {input.genus_OGs} >> {output.all_genus_OGs}; "
-        "awk 'FNR>1' {input.isolates_OGs} >> {output.all_isolates_OGs}"
+        """
+        defense-finder run {input.faa} --out-dir {output} --models-dir {params.model} -w {threads} 
+        """
+
+rule DF_parse:
+    input:
+        df_out_genes=expand("../results/pangenomes/B/defense_systems/{genome}/defense_finder_genes.tsv",  genome=GENOMES),
+        df_out_hmmer=expand("../results/pangenomes/B/defense_systems/{genome}/defense_finder_hmmer.tsv",  genome=GENOMES),
+        df_out_systems=expand("../results/pangenomes/B/defense_systems/{genome}/defense_finder_systems.tsv",  genome=GENOMES)
+    output:
+        genes="../results/pangenomes/B/defense_systems/defense_finder_genes.tsv",
+        hmmer="../results/pangenomes/B/defense_systems/defense_finder_hmmer.tsv",
+        systems="../results/pangenomes/B/defense_systems/defense_finder_systems.tsv"
+    log:
+        "logs/B_pangenomes/defense_systems/parse_df.log"
+    threads: 1
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 1000,
+        runtime= "00:30:00"
+    run:
+        genes=concat_tables(input.df_out_genes, add={"genome": GENOMES})
+        hmmer=concat_tables(input.df_out_hmmer, add={"genome": GENOMES})
+        systems=concat_tables(input.df_out_systems, add={"genome": GENOMES})
+
+        # save dataframes to output
+        genes.to_csv(output.genes, sep="\t", index=False)
+        hmmer.to_csv(output.hmmer, sep="\t", index=False)
+        systems.to_csv(output.systems, sep="\t", index=False)
+
+
+
+################################## Phages ####################################
+
+
+
+
 
 
 
@@ -1587,12 +1950,32 @@ rule single_OGs_diversity_aggregate:
 ######################### MAP TO REFERENCE DB ##################################
 #Once our database is well curated, we can TODO
 ################################################################################
-rule concat_genomes:
+
+rule split_drep_phages:
+    input:
+        genomes="../results/assembly/viral_contigs/dereplicated/all_viral_contigs_drep.fasta"
+    output:
+        single_genomes_drep=directory("../scratch_link/reference_phages_drep/")
+    log:
+        "logs/ref_db/viruses/split_drep.log"
+    threads: 2
+    conda:
+        "envs/drep_env.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 1500,
+        runtime= "00:30:00"
+    shell:
+        "python scripts/assembly/split_assembly.py -f {input.genomes} -d {output.single_genomes_drep}"
+
+
+############################### BACTERIA #######################################
+rule get_stb_bacteria:
     input:
         refs="../results/reference_db_filtered/dereplicated_genomes_filtered/"
     output:
-        concat="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.fasta",
-        stb="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb"
+        concat="../results/reference_db_filtered/B/all_B_RefGenomes.fasta",
+        stb="../results/reference_db_filtered/B/all_B_RefGenomes.stb"
     log:
         "logs/ref_db/concat_refs.log"
     threads: 2
@@ -1608,18 +1991,40 @@ rule concat_genomes:
         "cat {input.refs}/*.f* >> {output.concat}; "
         "parse_stb.py --reverse -f {params.refs}  -o {output.stb}"
 
+rule get_stb_viruses:
+    input:
+        single_genomes_drep="../scratch_link/reference_phages_drep/"
+    output:
+        concat="../results/reference_db_filtered/P/all_P_RefGenomes.fasta",
+        stb="../results/reference_db_filtered/P/all_P_RefGenomes.stb" 
+    log:
+        "logs/ref_db/viruses/stb.log"
+    threads: 2
+    conda:
+        "envs/drep_env.yaml"
+    params:
+        refs=lambda wildcards, input: get_files_commas(input[0], sep=" ")
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 1500,
+        runtime= "00:30:00"
+    shell:
+        "cat {input.single_genomes_drep}/*.f* >> {output.concat}; "
+        "parse_stb.py --reverse -f {params.refs}  -o {output.stb}"
+
+
 rule build_ref_index:
     input:
-        ref="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.fasta"
+        ref="../results/reference_db_filtered/{type}/all_{type}_RefGenomes.fasta",
     output:
-        index=directory("../results/reference_db_filtered/bacteria_index/")
+        index=directory("../results/reference_db_filtered/{type}_index/")
     conda:
         "envs/map_env.yaml"
     threads: 25
     log:
-        "logs/mapping/build_bowtie_index.log"
+        "logs/mapping/build_bowtie_{type}_index.log"
     params:
-        basename="all_bacterial_RefGenomes",
+        basename="all_{type}_RefGenomes",
     resources:
         account= "pengel_beemicrophage",
         mem_mb= 20000,
@@ -1630,7 +2035,7 @@ rule build_ref_index:
 
 rule MapReads:
     input:
-        index="../results/reference_db_filtered/bacteria_index/",
+        index="../results/reference_db_filtered/{type}_index/",
         R1="../data/host_filtered_reads/{sample}{type}_R1_HF.fastq.gz",
         R2="../data/host_filtered_reads/{sample}{type}_R2_HF.fastq.gz",
     output:
@@ -1641,17 +2046,17 @@ rule MapReads:
         "envs/map_env.yaml"
     threads: 25
     params:
-        basename="all_bacterial_RefGenomes"
+        basename="all_{type}_RefGenomes"
     log:
-        "logs/mapping/map/{sample}{type}_bbmap_mapping.log"
+        "logs/mapping/map/{type}/{sample}{type}_bbmap_mapping.log"
     benchmark:
-        "logs/mapping/map/{sample}{type}_bbmap_mapping.benchmark"
+        "logs/mapping/map/{type}/{sample}{type}_bbmap_mapping.benchmark"
     resources:
         account= "pengel_beemicrophage",
         mem_mb= 200000,
-        runtime= "07:00:00"
+        runtime= "02:00:00"
     shell:
-        "bowtie2 -x {input.index}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --threads {threads}"
+        "bowtie2 -x {input.index}/{params.basename} -1 {input.R1} -2 {input.R2} -S {output.sam} --very-sensitive --threads {threads}"
 
 rule generate_bam:
     input:
@@ -1665,7 +2070,7 @@ rule generate_bam:
         "envs/map_env.yaml"
     threads: 2
     log:
-        "logs/mapping/{sample}{type}_prepare_metapop.log"
+        "logs/mapping/map/{type}/{sample}{type}_generateBAM.log"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 20000,
@@ -1678,170 +2083,69 @@ rule generate_bam:
         "count=$(samtools view -c {output.bam}); "
         'echo -e "${{lib}}\t${{count}}" >> {output.cf}'
 
-##################### Mapping QC ###############################################
-
-rule mappings_stats:
-    input:
-        bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
-    output:
-        temp("../results/mapping/mapout_{sample}{type}/{sample}{type}_mapstats.tsv")
-    wildcard_constraints:
-        sample="\d+"
-    conda:
-        "envs/map_env.yaml"
-    log:
-        "logs/mapping/mapstats/{sample}{type}_mapstats.log"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 20000,
-        runtime= "01:00:00"
-    threads: 8
-    shell:
-        "samtools flagstat {input.bam} -@ {threads} > {output}"
-
-acc="B"
-
-rule merge_mapping_stats:
-    input:
-        filelist=expand("../results/mapping/mapout_{sample}{{type}}/{sample}{{type}}_mapstats.tsv", sample=config["sam_names"])
-    output:
-        "../results/mapping/all_{type}_mapstats.tsv"
-    wildcard_constraints:
-        sample="\d+"
-    conda:
-        "envs/base_R_env.yaml"
-    log:
-        "logs/mapping/{type}_merge_mapstats.log"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 10000,
-        runtime= "00:15:00"
-    threads: 2
-    script:
-        "scripts/mapping/format_flagstats.R"
-
-rule sort_bam:
-    input:
-        bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.bam"
-    output:
-        sorted_bam="../scratch_link/mapping/sorted_bams/{sample}{type}_mapping_sorted.bam",
-        bai="../scratch_link/mapping/sorted_bams/{sample}{type}_mapping_sorted.bam.bai"
-    log:
-        "logs/mapping/QC/sort_bam_{sample}{type}.log"
-    conda:
-        "envs/map_env.yaml"
-    threads: 5
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 8000,
-        runtime= "01:30:00"
-    shell:
-        "samtools sort {input.bam} -@ {threads} -o {output.sorted_bam}; "
-        "samtools index {output.sorted_bam} {output.bai} -@ {threads}"
-
-rule multireads_count:
-    input:
-        sorted_bam="../scratch_link/mapping/sorted_bams/{sample}{type}_mapping_sorted.bam"
-    output:
-        multireads_count="../results/mapping/multireads/{sample}{type}_multireads_count.tsv"
-    threads: 1
-    log:
-        "logs/mapping/multireads/{sample}{type}_multireads.log"
-    benchmark:
-        "logs/mapping/multireads/{sample}{type}_multireads.benchmark"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 50000,
-        runtime= "03:00:00"
-    script:
-        "scripts/mapping/multireads.py"
-
-
-rule aggregate_multireads:
-    input:
-        multireads_count=expand("../results/mapping/multireads/{sample}{{type}}_multireads_count.tsv", sample=config["sam_names"])
-    output:
-        all_multireads="../results/mapping/multireads/all_{type}_multireads_count.tsv"
-    threads: 1
-    log:
-        "logs/mapping/multireads/all_{type}_multireads.log"
-    benchmark:
-        "logs/mapping/multireads/all_{type}_multireads.benchmark"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 5000,
-        runtime= "00:15:00"
-    shell:
-        "echo -e 'scaffold\tmultireads\tavg_mapQ\tsample' > {output.all_multireads}; "
-        "tail -n +2 {input.multireads_count} >> {output.all_multireads}"
-
-rule prepare_bamQC:
-    input:
-        bam=expand("../scratch_link/mapping/sorted_bams/{sample}{{type}}_mapping_sorted.bam", sample=config["sam_names"])
-    output:
-        "../results/mapping/QC_{type}/bamqc_config.txt"
-    log:
-        "logs/mapping/QC/prepare_{type}_bamQC.log"
-    threads: 2
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 1000,
-        runtime= "00:15:00"
-    script:
-        "scripts/mapping/prepare_bamQC.py"
-
-rule bamQC:
-    input:
-        config="../results/mapping/QC_{type}/bamqc_config.txt"
-    output:
-        directory("../results/mapping/QC_{type}/multi_bamQC/")
-    log:
-        "logs/mapping/QC/multi_{type}_bamQC.log"
-    benchmark:
-        "logs/mapping/QC/multi_{type}_bamQC.benchmark"
-    threads: 12
-    params:
-        java_mem="300G"
-    resources:
-        account = "pengel_beemicrophage",
-        mem_mb = 300000,
-        runtime= "05:30:00"
-    conda:
-        "envs/qualimap.yaml"
-    shell:
-        "qualimap multi-bamqc -d {input.config} -outdir {output} -r -c --java-mem-size={params.java_mem}"
-
-
 ################################################################################
 ################################## INSTRAIN ####################################
 ################################################################################
-
-rule generate_genelist:
+rule annotate_viral_genomes_reference:
     input:
-        ref="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.fasta"
+        genomes="../scratch_link/reference_phages_drep/"
     output:
-        "../results/inStrain/all_bacterial_RefGenomes_genes.fna"
+        fnas=directory("../results/pangenomes/P/annotations_reference/genes_fna"),
+        faas=directory("../results/pangenomes/P/annotations_reference/genes_faa")
+    conda:
+        "envs/orthofinder.yaml"
+    log:
+        "logs/P_pangenomes/prodiagal_annot.log" 
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "02:00:00"
+    shell:
+        "scripts/bacteria_pangenome/run_prod_annot_clusters.sh {output.fnas} {output.faas} {input.genomes}"
+
+BACTERIA_REFS1=glob_wildcards("../results/reference_db_filtered/dereplicated_genomes_filtered/{genome}.fna")
+BACTERIA_REFS2=glob_wildcards("../results/reference_db_filtered/dereplicated_genomes_filtered/{genome}.fa")
+
+rule generate_genelist_bacterial:
+    input:
+        ref=expand("../results/pangenomes/B/annotations/genes_fna/" + "{genome}_genes.fna", genome=BACTERIA_REFS1.genome + BACTERIA_REFS2.genome)
+    output:
+        "../results/inStrain/all_B_RefGenomes_genes.fna"
     conda:
         "envs/inStrain.yaml"
-    threads: 25
+    threads: 2
     log:
-        "logs/instrain/generate_gene_list.log"
+        "logs/instrain/generate_gene_list_B.log"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 20000,
         runtime= "1:00:00"
     shell:
-        "prodigal -i {input.ref} -d {output}"
+        "cat {input.ref} > {output}"
+
+rule generate_genelist_viral:
+    input:
+        ref="../results/pangenomes/P/annotations_reference/genes_fna"
+    output:
+        "../results/inStrain/all_P_RefGenomes_genes.fna"
+    log:
+        "logs/instrain/generate_gene_list_P.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 20000,
+        runtime= "00:10:00"
+    shell:
+        "cat {input.ref}/* > {output}"
+
 
 rule instrain_profile:
     input:
         bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.bam",
-        ref="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.fasta",
-        genL="../results/inStrain/all_bacterial_RefGenomes_genes.fna",
-        stb="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb",
+        ref="../results/reference_db_filtered/{type}/all_{type}_RefGenomes.fasta",
+        genL="../results/inStrain/all_{type}_RefGenomes_genes.fna",
+        stb="../results/reference_db_filtered/{type}/all_{type}_RefGenomes.stb" 
     output:
-        dir=directory("../scratch_link/inStrain/profile_{type}/{sample}{type}_profile/"),
-        sorted_bam="../scratch_link/mapping/mapdata_{type}/{sample}{type}_mapping.sorted.bam"
+        dir=directory("../results/inStrain/profile_{type}/{sample}{type}_profile/")
     threads: 32
     conda:
         "envs/inStrain.yaml"
@@ -1851,35 +2155,49 @@ rule instrain_profile:
         "logs/instrain/{sample}{type}_profile.benchmark"
     resources:
         account = "pengel_beemicrophage",
-        mem_mb = 500000,
+        mem_mb = 700000,
         runtime= "10:00:00"
     params:
         min_ANI=0.92
     shell:
         "(inStrain profile {input.bam} {input.ref} -o {output.dir} --min_read_ani {params.min_ANI} -p {threads} -g {input.genL} -s {input.stb})2> {log}"
 
-
-rule aggregate_instain_tabs:
+rule get_gene_info_bacterial:
     input:
-        IS=expand("../scratch_link/inStrain/profile_{{type}}/{sample}{{type}}_profile", sample=config["sam_names"]),
-        tax="../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv"
+        instrain="../results/inStrain/profile_B/{sample}B_profile/",
+        pans=expand("../results/pangenomes/B/mOTUpan/{genus}_pan.tsv", genus=GENUSES),
+        orthogroup_tab="../results/pangenomes/B/parsed_orthofinder_output/summary_tables/Orthogroups_table.tsv"
     output:
-        genome_info="../results/inStrain/{type}/data_tables/all_genome_info.tsv",
-        gene_info="../results/inStrain/{type}/data_tables/all_gene_info.tsv",
-        mapping_info="../results/inStrain/{type}/data_tables/all_mapping_info.tsv",
-        scaffold_info="../results/inStrain/{type}/data_tables/all_scaffold_info.tsv",
+        genes="../results/inStrain/profile_B/tmp_data/{sample}B_gene_info.tsv",
+        core="../results/inStrain/profile_B/tmp_data/{sample}B_core_gene_info.tsv"
     conda:
-        "envs/base_R_env.yaml"
-    params:
-        us_func="scripts/useful_func.R"
+        "envs/mOTUpan.yaml"
     log:
-        "logs/instrain/{type}/aggreagte_profile_data_tabs.log"
+        "logs/instrain/summarize/{sample}B_gene_info.log"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 50000,
-        runtime= "01:00:00"
-    script:
-        "scripts/bacteria_community_analysis/aggregate_instrain_tabs.R"
+        runtime= "00:15:00"
+    shell:
+        "python scripts/bacteria_community_analysis/core_genome_parse.py -i {input.orthogroup_tab} -m {input.pans} -g {input.instrain}/output/{wildcards.sample}B_profile_gene_info.tsv -o {output.genes} -c {output.core}"
+
+rule aggregate_instrain_bacterial:
+    input:
+        IS=expand("../results/inStrain/profile_B/{sample}B_profile", sample=config["sam_names"], type=type_of),
+        genes=expand("../results/inStrain/profile_B/tmp_data/{sample}B_gene_info.tsv", sample=config["sam_names"]),
+        tax="../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv"
+    output:
+        outdir=directory("../results/inStrain/profile_B/summary_data/")
+    conda:
+        "envs/mOTUpan.yaml"
+    log:
+        "logs/instrain/summarize/aggreagte_profile_data_tabs.log"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 50000,
+        runtime= "00:30:00"
+    shell:
+        "python scripts/bacteria_community_analysis/parse_instrain_bacterial.py -i {input.IS} -g {input.genes} -t {input.tax} -o {output.outdir}"
 
 rule do_rarefaction:
     input:
@@ -1906,20 +2224,20 @@ rule do_rarefaction:
     script:
         "scripts/bacteria_community_analysis/do_rarefaction.R"
 
-rule instrain_compare:
+rule instrain_compare_bact:
     input:
-        IS=expand("../scratch_link/inStrain/profile_{{type}}/{sample}{{type}}_profile/", sample=config["sam_names"]),
-        ref="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.fasta",
-        stb="../results/reference_db_filtered/all_genomes/all_bacterial_RefGenomes.stb"
+        IS=expand("../results/inStrain/profile_B/{sample}B_profile/", sample=config["sam_names"]),
+        ref="../results/reference_db_filtered/B/all_B_RefGenomes.fasta",
+        stb="../results/reference_db_filtered/B/all_B_RefGenomes.stb" 
     output:
-        directory("../results/inStrain/{type}/compare_{type}/compare_{genome}")
+        directory("../results/inStrain/compare_B/compare_B/compare_{genome}")
     threads: 40
     conda:
         "envs/inStrain.yaml"
     log:
-        "logs/instrain/compare/{type}_compare_{genome}.log"
+        "logs/instrain/compare/B_compare_{genome}.log"
     benchmark:
-        "logs/instrain/compare/{type}_compare_{genome}.benchmark"
+        "logs/instrain/compare/B_compare_{genome}.benchmark"
     resources:
         account = "pengel_beemicrophage",
         mem_mb = 600000,
