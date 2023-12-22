@@ -14,9 +14,9 @@ parser = argparse.ArgumentParser(
     add_help=False,
 )
 
-parser.add_argument("infasta", help="Paths to input FASTA file")
-parser.add_argument("intab", help="Paths to input viral identification table")
-parser.add_argument("outfasta", help="Path to output FASTA file")
+parser.add_argument("-i", "--infasta", help="Paths to input FASTA file")
+parser.add_argument("-t", "--intab", help="Paths to input viral identification table")
+parser.add_argument("-o", "--outfasta", help="Path to output FASTA file")
 
 if len(sys.argv) == 1 or sys.argv[1] in ("-h", "--help"):
     parser.print_help()
@@ -31,8 +31,7 @@ sam=args.infasta.split("/")[-1].split("_")[0]
 
 # open inputs
 tab=pd.read_csv(args.intab, delimiter="\t", low_memory=False).query('sample==@sam')
-contigs=tab["contig"].tolist()
-
+contigs=tab["contig"].tolist() # list of contigs that are viruses
 
 outfatsa=open(args.outfasta, "w")
 for fasta in SeqIO.parse(args.infasta, "fasta"):
@@ -46,7 +45,10 @@ for fasta in SeqIO.parse(args.infasta, "fasta"):
 
             start=tab.query('contig==@contig')["start"].dropna().tolist()
             end=tab.query('contig==@contig')["stop"].dropna().tolist()
-            new_name=tab.query('contig==@contig')["fragment"].dropna().tolist()
+            new_name=tab.query('contig==@contig')["new_contig"].dropna().tolist()
+
+            # remove white spaces from the list
+            new_name = [x.strip(' ') for x in new_name]
 
             for i in range(len(start)):
                 print(int(start[i])-1)
@@ -54,7 +56,9 @@ for fasta in SeqIO.parse(args.infasta, "fasta"):
                 outfatsa.write(">"+str(new_name[i])+"\n"+str(sequence[int(start[i])-1:int(end[i])])+"\n")
 
         else:
-            outfatsa.write(">"+str(contig)+"\n"+str(sequence)+"\n")
+            new_name=tab.query('contig==@contig')["new_contig"].dropna().tolist()
+            new_name = [x.strip(' ') for x in new_name]
+            outfatsa.write(">"+str(new_name[0])+"\n"+str(sequence)+"\n")
 
     else:
         print("\n---contig " + contig + " is NOT a virus")

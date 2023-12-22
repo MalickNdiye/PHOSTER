@@ -127,7 +127,16 @@ VI_df<- full_join(vv, virsorter, by=c("sample", "contig")) %>%
   relocate(quality,  vv_quality, vs_quality, vibrant_quality, .after=len) %>%
   relocate(sam_type, sam_name) %>%
   select(-c(vv_pred,vv_score, Pfam.hits, dsDNAphage,
-         ssDNA, vs_score, hallmark, viral, cellular))
+         ssDNA, vs_score, hallmark, viral, cellular)) %>%
+         ungroup()
+
+## add column named "new name" to VI_df
+# the new_name will be sample_viral_contig_1, sample_viral_contig_2, etc. where the number increases within each sample
+VI_df<- VI_df %>%
+  group_by(sample) %>%
+  mutate(new_contig=paste0(sample, "_viral_contig_", row_number())) %>%
+  ungroup()%>% 
+  relocate(new_contig, .after=contig) 
 
 tool_tab<- rbind(vs_red, vv_red) %>% rbind(., vib_red)%>%
   pivot_wider(names_from="tool", values_from="hit", values_fill = 0)

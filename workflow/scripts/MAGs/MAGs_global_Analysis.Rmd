@@ -18,6 +18,7 @@ library(ggbeeswarm)
 source("../useful_func.R")
 
 fig_dir<- "../../../Figures/MAGs_analysis/"
+tab_dir<- "../../../Supplementary_tabs"
 ```
 
 # Metgenomes assembly
@@ -210,8 +211,8 @@ MAG_pie_plt<- gtdb_comp %>% filter(!is.na(genus)) %>%
         axis.ticks = element_blank())+
   coord_polar("y", start=0);MAG_pie_plt
 
-ggsave(paste(fig_dir, "MAG_piechart.png", sep=""), MAG_pie_plt,units = "mm",
-       height = 210, width = 297, dpi = 600)
+# ggsave(paste(fig_dir, "MAG_piechart.png", sep=""), MAG_pie_plt,units = "mm",
+#        height = 210, width = 297, dpi = 600)
 ```
 
 
@@ -340,6 +341,25 @@ clust_win<- read.csv(clust_win_p, header=T, sep="\t") %>%
   dplyr::mutate(genus=unlist(strsplit(species, split=" "))[1]) 
 ```
 
+# Supplementary table of MAGS info
+```{r}
+clust_info<- fread("../../../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv")
+
+clust_all_info<- checkm_filt %>%
+  rename("genome"=`Bin Id`)%>%
+  mutate(id=gen_to_id[genome],
+         genus=gen_to_genome[genome],
+         best_genome=get_mtdata(mtdata_path="../../../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv","ref", corr="Bin.Id", genome),
+         sample=ifelse(is.na(sample), "isolate genome", sample)
+         )%>%
+  relocate(genus, id, .after = genome) %>%
+  filter(!is.na(id))%>%
+  arrange(id)
+
+#write.table(clust_all_info, file.path(tab_dir, "genomes_info.tsv"), quote=F, sep="\t", row.names = F) 
+```
+
+
 # MAGs size vs isolates
 ```{r}
 clust_ginfo<- checkm_filt %>%
@@ -353,24 +373,41 @@ clust_ginfo<- checkm_filt %>%
                             ifelse(c("MAG") %in% unique(type), "MAGs", "isolates"))) %>%
   filter(composition %in% c("Both", "MAGs"), !genus=="Bombella")
 
+clust_all_info<- checkm_filt %>%
+  rename("genome"=`Bin Id`)%>%
+  mutate(id=gen_to_id[genome],
+         genus=gen_to_genome[genome],
+         )%>%
+  relocate(id,genus, .after = genome) %>%
+  group_by(id) %>%
+  mutate(composition=ifelse(length(unique(type))==2, "Both",
+                            ifelse(c("MAG") %in% unique(type), "MAGs", "isolates")))
+
+clust_supp_tab<- write.table(clust_ginfo, file.path(tab_dir, "genomes_info.tsv"), quote=F, sep="\t", row.names = F) 
+
+pal=c("isolate"="hotpink4", "MAG"="lightskyblue4")
+library(yangR)
 mags_size_plt<- ggplot(clust_ginfo, aes(x=Get_labels_linneus(id), y=`Genome size (bp)`))+
-  geom_point(aes( col=type), size=2,  alpha=0.5)+
+  #geom_point(aes( col=type), size=2,  alpha=0.7)+
+  geom_beeswarm(aes( col=type), size=4, alpha=0.7)+
   coord_flip()+
   labs(x="")+
-  facet_wrap(.~genus, ncol = 1, strip.position = "right", scales = "free_y")+
-  theme_linedraw()+
+  facet_wrap(.~id, ncol = 1, strip.position = "right", scales = "free_y")+
+  theme_minimal()+
+  scale_color_manual(values=pal)+
   scale_y_continuous(labels = unit_format(unit = "M", scale = 1e-6))+
   theme(panel.grid.minor.x = element_blank(),
-        axis.text.x = element_text(face="bold", size=14),
-        axis.text.y = element_text(face="bold", size=10),
-        axis.title = element_text(face="bold", size=14),
-        legend.text = element_text(size=14,face="bold"),
-        strip.text = element_blank(),
-        legend.title = element_text(size=14, face="bold"),
+        panel.grid.major = element_line(size = 5/.pt),
+        strip.background = element_blank(), strip.text = element_blank(),
+        axis.text.x = element_text(face="bold", size=40/.pt),
+        axis.text.y = element_text(face="bold", size=40/.pt),
+        axis.title = element_text(face="bold", size=40/.pt),
+        legend.text = element_text(size=40/.pt,face="bold"),
+        legend.title = element_blank(),
         legend.position = "top");mags_size_plt
 
 ggsave(paste(fig_dir, "mags_size_plt.png", sep=""), mags_size_plt,units = "mm",
-       height = 297, width = 210, dpi = 600)
+       height = 297, width = 297, dpi = 600)
 ```
 
 # Derepliction
