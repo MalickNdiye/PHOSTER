@@ -16,7 +16,9 @@ def main():
 
     df = pd.DataFrame(columns=['contig', 'length'])
     for record in SeqIO.parse(args.input, 'fasta'):
-        df = df.append({'contig': record.description, 'length': len(record.seq)}, ignore_index=True)
+        df = df.append({'contig': record.id, 'length': len(record.seq)}, ignore_index=True)
+    # save df to file
+    df.to_csv(args.output, sep='\t', index=False)
     
 
 if __name__ == '__main__':

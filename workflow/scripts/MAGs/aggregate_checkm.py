@@ -1,6 +1,34 @@
 import pandas as pd
 import os
 import shutil
+import sys
+import os
+import argparse
+import pandas as pd
+from Bio import SeqIO
+
+parser = argparse.ArgumentParser(
+    description="""this script takes as input a list of check stats tables (--tab-file) and the corresponding bins,
+     cleans the table and filters the bins based on completeness and contamination. It returns a combined stat table for all MAGs and one for the good MAGs. 
+     Also copies all "good" MAGs in a single directory. The script is called by the snakemake workflow. The input and output files are defined in the snakemake file. 
+     The script can also be run independently by providing the input and output files as arguments. The input files are:""",
+    formatter_class=argparse.RawDescriptionHelpFormatter,
+    add_help=False,
+)
+
+parser.add_argument("-i", "--input_stats", help="Paths to input checkm stat files", nargs="+")
+parser.add_argument("-b", "--bins", help="paths to bin files", nargs="+")
+parser.add_argument("-o", "--full_stats", help="paths to full stat output")
+parser.add_argument("-f", "--filt_stats", help="paths to filtered stat output")
+parser.add_argument("-m", "--mags", help="paths to filtered MAGs directory")
+parser.add_argument("-c", "--completeness", help="completeness threshold")
+parser.add_argument("-e", "--contamination", help="contamination threshold")
+
+if len(sys.argv) == 1 or sys.argv[1] in ("-h", "--help"):
+    parser.print_help()
+    sys.exit()
+
+args = parser.parse_args()
 
 
 ################################################################################
@@ -12,13 +40,12 @@ import shutil
 # and one for the good MAGs. Also copies all "good" MAGs in a single directory.
 
 #inputs
-stats_list=list(snakemake.input["stats"])
-bins_dir=snakemake.params["bins"]
+stats_list=args.input_stats
 
 #outputs
-out_full_stats=snakemake.output["full_stats"] # checkm stats of all MAGs
-out_filtered_stats=snakemake.output["filtered_stats"] # checkm stats of "good" MAGs
-chosen_mags_dir=snakemake.output["filered_mags"] # directory where all good MAGs will be stored
+out_full_stats=args.full_stats # checkm stats of all MAGs
+out_filtered_stats=args.filt_stats # checkm stats of "good" MAGs
+chosen_mags_dir=args.mags # directory where all good MAGs will be stored
 
 
 def create_df_list(list):
@@ -55,18 +82,19 @@ def get_good_mags(dir, good_mags):
 
 dfs=create_df_list(stats_list)
 full_df=pd.concat(dfs)
-filter="Completeness>"+str(snakemake.params["compl"])+ " and Contamination<" +str(snakemake.params["cont"])
+filter="Completeness>"+str(args.completeness)+ " and Contamination<" +str(args.contamination)
 filtred_df=full_df.query(filter) # MAGs with completeness < 50% and contamination > 10% are not even considered for dereplication by dRep
 
 full_df.to_csv(out_full_stats, sep="\t", index=False)
 filtred_df.to_csv(out_filtered_stats, sep="\t", index=False)
 
-bins_sam=os.listdir(bins_dir)
+bins_sam=args.bins
 all_filtered_mags=[]
 gd_mags=list(filtred_df["Bin Id"])
 
 for dir in bins_sam:
-    inpath=os.path.join(bins_dir, dir)
+    print("looking for good MAGs in " + dir)
+    inpath=dir
     new_mags=get_good_mags(inpath, gd_mags)
     for entry in new_mags:
         source=entry

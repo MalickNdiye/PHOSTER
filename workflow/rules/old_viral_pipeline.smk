@@ -423,3 +423,339 @@ rule aggreagte_polishing_tables:
         # add column "reference" to mtdata_nobact
         mtdata_nobact["reference"]=mtdata_nobact["genome_id"].isin(drep_contigs)
         mtdata_nobact.to_csv(output.all_mtdata_nobact, sep="\t", index=False)
+
+        #################################################################################
+############################## HOST ASSIGNATION #################################
+#################################################################################
+# to assign hosts to every viral contigs we will use the CRISPR spacers and genome homology:
+
+# 1. find CRISPR spacers in all MAGs and refernce bacterial genome
+# 2. Map spacers against all viral contigs
+# 3. Use fastani to identify genome Homology between viral contigs and reference bacterial genomes
+# 4. Use the results of 2 and 3 to assign a host to every viral contigs
+#################################################################################
+
+###################################### 1 ########################################
+rule find_CRISPR_spacers:
+    input:
+        all_refs="../scratch_link/reference_genomes_redundant/"
+    output:
+        spacers_dir=temp("../results/spacers_db/hb_spacers/{gg}-spacers")
+    log:
+        "logs/spacers_db/find_spacers_{gg}.log"
+    benchmark:
+        "logs/spacers_db/find_spacers_{gg}.benchmark"
+    threads: 1
+    conda:
+        "envs/singularity.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "04:00:00"
+    shell:
+        "scripts/assign_host/run_ccf.sh {input} {output} {wildcards.gg}"
+
+rule parse_CCF:
+    input:
+        all_spacers=expand("../results/spacers_db/hb_spacers/{gg}-spacers", gg=get_genomes("../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv"))
+    output:
+        parsed_crispr=directory("../results/spacers_db/hb_spacers_parsed/")
+    log:
+        "logs/spacers_db/parse_CFFF.log"
+    benchmark:
+        "logs/spacers_db/parse_CFFF.benchmark"
+    threads: 1
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "00:30:00"
+    script:
+        "scripts/assign_host/CCF_Parser.py"
+
+rule find_CRISPR_spacers_metaG:
+    input:
+       R1="../data/trimmed_reads/{sam_name}B_R1_paired.fastq.gz",
+       R2="../data/trimmed_reads/{sam_name}B_R1_paired.fastq.gz"
+    output:
+        MetaG_spaces_dir=temp(directory("../results/spacers_db/MetaG_spacers/{sam_name}B_MetaG_spacers")),
+        stat=temp("../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_spacers_stat.tsv"),
+        metaG_spacer=temp("../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_spacers.fasta"),
+        metaG_DR=temp("../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_DRs.fasta")
+    log:
+        "logs/spacers_db/CRASS/find_MetaG_spacers_{sam_name}B.log"
+    benchmark:
+        "logs/spacers_db/CRASS/find_MetaG_spacers_{sam_name}B.benchmark"
+    threads: 4
+    conda:
+        "envs/crass.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "1h"
+    shell:
+        "crass -o {output.MetaG_spaces_dir} {input.R1} {input.R2}; "
+        "crisprtools stat -Ha {output.MetaG_spaces_dir}/crass.crispr > {output.stat}; "
+        "crisprtools extract -d{output.metaG_DR} -s{output.metaG_spacer} {output.MetaG_spaces_dir}/crass.crispr"
+
+rule parse_CRASS:
+    input:
+        stat="../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_spacers_stat.tsv",
+        metaG_spacer="../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_spacers.fasta",
+        metaG_DR="../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_DRs.fasta"
+    output:
+        parse_stat="../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_CRISPR_stat_parsed.tsv",
+        parse_metaG_spacer="../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_spacers_parsed.fasta",
+        parse_metaG_DR="../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_DRs_parsed.fasta"
+    log:
+        "logs/spacers_db/CRASS/parse_CRASS_{sam_name}B.log"
+    threads: 1
+    conda:
+        "envs/mOTUpan.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "1h"
+    shell:
+        "python scripts/assign_host/parsecrass.py -d {input.metaG_DR} -s {input.metaG_spacer} -t {input.stat} -o {output.parse_stat} -r {output.parse_metaG_DR} -f {output.parse_metaG_spacer}"
+
+rule aggragate_MetaG_CRISPR:
+    input:
+        parse_stat=expand("../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_CRISPR_stat_parsed.tsv", sam_name=config["sam_names"]),
+        parse_metaG_spacer=expand("../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_spacers_parsed.fasta", sam_name=config["sam_names"]),
+        parse_metaG_DR=expand("../results/spacers_db/MetaG_spacers/{sam_name}B/{sam_name}B_MetaG_DRs_parsed.fasta", sam_name=config["sam_names"])
+    output:
+        all_parse_stat="../results/spacers_db/MetaG_spacers/all_MetaG_CRISPR_stat_parsed.tsv",
+        all_parse_metaG_spacer="../results/spacers_db/MetaG_spacers/all_MetaG_spacers_parsed.fasta",
+        all_parse_metaG_DR="../results/spacers_db/MetaG_spacers/all_MetaG_DRs_parsed.fasta",
+        spacers_length="../results/spacers_db/MetaG_spacers/all_MetaG_spacers_length.tsv"
+    log:
+        "logs/spacers_db/CRASS/aggregate_MetaG_CRISPR.log"
+    threads: 1
+    conda:
+        "envs/mOTUpan.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "1h"
+    shell:
+        "echo -e 'sample\tGID\tDR_consensus\tnr_DR_variants\tavg_DR_len\tnr_spacers\tavg_spacer_len\tavg_spacer_cov\tnr_flankers\tavg_flanker_len\tnr_reads' > {output.all_parse_stat}; "
+        "tail -n +2 -q {input.parse_stat} >> {output.all_parse_stat}; "
+        "cat {input.parse_metaG_spacer} > {output.all_parse_metaG_spacer}; "
+        "cat {input.parse_metaG_DR} > {output.all_parse_metaG_DR}; "
+        "python scripts/assign_host/get_fasta_lengths.py -i {output.all_parse_metaG_spacer} -o {output.spacers_length}"
+
+rule create_spacerDB_metaG:
+    input:
+        all_parse_metaG_spacer="../results/spacers_db/MetaG_spacers/all_MetaG_spacers_parsed.fasta"
+    output:
+        spacers_db=directory("../results/spacers_db/MetaG_spacersDB/")
+    log:
+        "logs/spacers_db/create_spacersDB.log"
+    benchmark:
+        "logs/spacers_db/create_spacersDB.benchmark"
+    threads: 1
+    conda:
+        "envs/blast.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "1h"
+    shell:
+        "mkdir -p {output.spacers_db}; "
+        "cat {input.all_parse_metaG_spacer} > {output.spacers_db}/MetaG_spacersDB.fasta;"
+        "makeblastdb -in {output.spacers_db}/MetaG_spacersDB.fasta -dbtype nucl -out {output.spacers_db}/MetaG_spacersDB"
+
+rule create_spacersDB:
+    input:
+        openDB_spacers="resources/default_DBs/CrisprOpenDB/CrisprOpenDB/SpacersDB/SpacersDB.fasta",
+        my_spacers="../results/spacers_db/hb_spacers_parsed/"
+    output:
+        spacers_db=directory("../results/spacers_db/spacersDB/")
+    log:
+        "logs/spacers_db/create_spacersDB.log"
+    benchmark:
+        "logs/spacers_db/create_spacersDB.benchmark"
+    threads: 1
+    conda:
+        "envs/blast.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 10000,
+        runtime= "1h"
+    shell:
+        "mkdir -p {output.spacers_db}; "
+        "cat {input.my_spacers}/CRISPR_v1.fasta {input.openDB_spacers} > {output.spacers_db}/myspacersDB.fasta; "
+        "makeblastdb -in {output.spacers_db}/myspacersDB.fasta -dbtype nucl -out {output.spacers_db}/mySpacersDB"
+
+###################################### 2 ########################################
+rule assign_host:
+    input:
+        phageDB="../results/assembly/viral_contigs/polished/{sample}_viral_contigs_filtered_nobact.fasta",
+        spacers_db="../results/spacers_db/spacersDB/"
+    output:
+        blastout=temp("../results/host_assigniation/{sample}_host/spacers_{sample}_blastout.txt"),
+        spacers_report=temp("../results/host_assigniation/{sample}_host/CRISPRopenDB_{sample}_report.txt")
+    log:
+        "logs/assign_host/assign_host_{sample}.log"
+    benchmark:
+        "logs/assign_host/assign_host_{sample}.benchmark"
+    threads: 10
+    conda:
+        "envs/CrisprOpenDB.yaml"
+    params:
+        DB="resources/default_DBs/CrisprOpenDB"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "10:00:00"
+    shell:
+        "wd=$(pwd -P); "
+        "scripts/assign_host/run_assign_host.sh ${{wd}} {input.phageDB} {input.spacers_db} {output.blastout} {output.spacers_report} {threads} {wildcards.sample}"
+
+rule assign_spacer_metaG:
+    input:
+        phageDB="../results/assembly/viral_contigs/polished/{sample}_viral_contigs_filtered_nobact.fasta",
+        spacers_db="../results/spacers_db/MetaG_spacersDB/"
+    output:
+        blastout=temp("../results/host_assigniation/{sample}_host_metaG/spacers_{sample}_blastout.txt")
+    log:
+        "logs/assign_host/metaG/assign_host_{sample}.log"
+    benchmark:
+        "logs/assign_host/metaG/assign_host_{sample}.benchmark"
+    threads: 10
+    conda:
+        "envs/CrisprOpenDB.yaml"
+    params:
+        DB="resources/default_DBs/CrisprOpenDB"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "10h"
+    shell:
+        "blastn -query {input.phageDB} -task blastn-short -db {input.spacers_db}/MetaG_spacersDB -outfmt '6 qseqid sseqid pident length mismatch gapopen qstart qend sstart send evalue bitscore' -out {output.blastout} -num_threads {threads}"
+
+
+rule aggregate_assign_host:
+    input:
+        blastout=expand("../results/host_assigniation/{sample}_host/spacers_{sample}_blastout.txt", sample=config["samples"]),
+        spacers_report=expand("../results/host_assigniation/{sample}_host/CRISPRopenDB_{sample}_report.txt", sample=config["samples"])
+    output:
+        all_blastout="../results/host_assigniation/spacers/all_spacers_blastout.txt",
+        all_spacers_report="../results/host_assigniation/spacers/all_CRISPRopenDB_report.txt"
+    log:
+        "logs/assign_host/aggregate_assign_host.log"
+    benchmark:
+        "logs/assign_host/aggrgate_assign_host.benchmark"
+    threads: 1
+    conda:
+        "envs/CrisprOpenDB.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "00:10:00"
+    shell:
+        "tail -n +2 -q {input.spacers_report}> {output.all_spacers_report}; "
+        "echo -e 'Hit_nr,SPACER_ID,Query,identity,alignement_length,mismatch,gap,q_start,q_end,s_start,s_end,e_value,score,GENEBANK_ID,ORGANISM_NAME,SPECIES,GENUS,FAMILY,ORDER,SPACER,SPACER_LENGTH,COUNT_SPACER,POSITION_INSIDE_LOCUS,true_num_mismatch' > {output.all_blastout}; "
+        "tail -n +2 -q {input.blastout} >> {output.all_blastout}; "
+
+rule aggregate_assign_host_metaG:
+    input:
+        blastout=expand("../results/host_assigniation/{sample}_host_metaG/spacers_{sample}_blastout.txt", sample=config["samples"])
+    output:
+        all_blastout="../results/host_assigniation/metaG/all_spacers_blastout_metaG.txt"
+    log:
+        "logs/assign_host/metaG/aggregate_assign_host_metaG.log"
+    benchmark:
+        "logs/assign_host/metaG/aggrgate_assign_host_metaG.benchmark"
+    threads: 1
+    conda:
+        "envs/CrisprOpenDB.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "20m"
+    shell:
+        "echo -e 'Query\tSPACER_ID\tidentity\talignement_length\tmismatch\tgap\tq_start\tq_end\ts_start\ts_end\te_value\tscore' > {output.all_blastout}; "
+        "tail -n +2 -q {input.blastout} >> {output.all_blastout}; "
+###################################### 3 ########################################
+rule fastani_prophages:
+    input:
+        mags="../results/MAG_binning/bins/filtered_mags",
+        isolates="../data/reference_assemblies/hb_bacteria/non_redundant/single_genomes/contigs",
+        viruses="../scratch_link/viral_contigs/single_genomes/"
+    output:
+        "../results/host_assigniation/prophges/fastani_out.txt"
+    threads: 15
+    params:
+        mags_l="./mags_l.txt",
+        vir_l="./vir_l.txt"
+    log:
+        "logs/assign_host/prophages/fastani.log"
+    conda:
+        "envs/drep_env.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "02:00:00"
+    shell:
+        "find {input.mags} -maxdepth 1 -type f -not -name '.*' -printf '{input.mags}/%f\n' > {params.mags_l}; "
+        "find {input.isolates} -maxdepth 1 -type f -not -name '.*' -printf '{input.isolates}/%f\n' >> {params.mags_l}; "
+        "find {input.viruses} -maxdepth 1 -type f -not -name '.*' -printf '{input.viruses}/%f\n' > {params.vir_l}; "
+        "fastANI --ql {params.vir_l} --rl {params.mags_l} -t {threads} --fragLen 3000 -o {output}; "
+        "rm {params.mags_l} {params.vir_l}"
+
+###################################### IPHOP ########################################
+rule run_iphop:
+    input:
+        phage_fasta="../results/assembly/viral_contigs/polished/{sample}_viral_contigs_filtered_nobact.fasta",
+    output:
+        outdir=directory("../results/host_assigniation/IPHOP/{sample}_iphop")
+    log:
+        "logs/assign_host/iphop/assign_host_{sample}.log"
+    benchmark:
+        "logs/assign_host/iphop/assign_host_{sample}.benchmark"
+    threads: 12
+    params:
+        DB="resources/db2/iphop_mine_rw/",
+        old_DB="resources/db2/iphop/Sept_2021_pub_rw",
+        container="resources/db2/containers/iphop-latest.simg"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 200000,
+        runtime= "04:00:00"
+    shell:
+        """
+        in=$(realpath {input.phage_fasta})
+        out=$(realpath {output.outdir})
+        db=$(realpath {params.DB})
+        old_db=$(realpath {params.old_DB})
+
+        mkdir -p $out
+        
+        singularity run -B $in,$db,$out,$old_db {params.container} predict --fa_file $in --db_dir $db --out_dir $out -t {threads}
+        """
+###################################### 4 ########################################
+rule parse_host_assignation:
+    input:
+        all_blastout="../results/host_assigniation/spacers/all_spacers_blastout.txt",
+        pro="../results/host_assigniation/prophges/fastani_out.txt",
+        spacers_mtdata="../results/spacers_db/hb_spacers_parsed",
+        clust_filtered="../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv",
+        binning_data="../results/vMAG_binning/summary_tables/all_viral_contigs_metadata.tsv"
+    output:
+       formatted_spacers="../results/host_assigniation/summary_table/spacers_metadata.tsv",
+       blastout_filt_complete="../results/host_assigniation/summary_table/spacers_blastout_filt_complete.tsv",
+       blastout_formatted="../results/host_assigniation/summary_table/spacers_blastout_filt_formatted.tsv",
+       spacers_host="../results/host_assigniation/summary_table/spacers_host.tsv",
+       prophages_host="../results/host_assigniation/summary_table/prophages_host.tsv",
+       phage_host="../results/host_assigniation/summary_table/phage_host.tsv"
+    log:
+        "logs/assign_host/parse_host_assignation.log"
+    conda:
+        "envs/base_R_env.yaml"
+    resources:
+        account = "pengel_beemicrophage",
+        mem_mb = 100000,
+        runtime= "00:30:00"
+    script:
+        "scripts/assign_host/parse_host_assignation.R" # TODO run again

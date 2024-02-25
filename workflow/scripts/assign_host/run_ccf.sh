@@ -31,7 +31,7 @@ cd ${output%/*}/${genome}_run
 
 # launch CCF
 singularity exec -B $PWD --no-home CrisprCasFinder_${genome}.simg perl /usr/local/CRISPRCasFinder/CRISPRCasFinder.pl \
--so /usr/local/CRISPRCasFinder/sel392v2.so -cf /usr/local/CRISPRCasFinder/CasFinder-2.0.3 \
+-so /usr/local/CRISPRCasFinder/sel392v2.so -cf /usr/local/CRISPRCasFinder/CasFinder-2.0.3 -cas \
 -drpt /usr/local/CRISPRCasFinder/supplementary_files/repeatDirection.tsv \
 -rpts /usr/local/CRISPRCasFinder/supplementary_files/Repeat_List.csv \
 -out ./temp_${genome} -in ${genome}

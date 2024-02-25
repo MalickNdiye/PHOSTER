@@ -179,7 +179,6 @@ get_core<- function(){
                 "Firm5",
                 "Bifidobacterium",
                 "Commensalibacter",
-                "Bombella",
                 "Acetobacteraceae",
                 "Snodgrassella",
                 "Gilliamella",

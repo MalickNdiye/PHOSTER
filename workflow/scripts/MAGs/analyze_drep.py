@@ -14,12 +14,12 @@ os.listdir("../results/reference_db/data_tables/")
 
 clust_assign_p=snakemake.input["clust_assign"]
 mtdata_p=snakemake.input["mtdata"]
-to_delete_p=snakemake.input["to_delete"]
+#to_delete_p=snakemake.input["to_delete"]
 pickle_p=os.path.join(snakemake.input["ref_db"], "data/Clustering_files/")
 
 clust_assign=pd.read_csv(clust_assign_p, delimiter="\t")
 mtdata=pd.read_csv(mtdata_p, delimiter="\t")
-to_delete=pd.read_csv(to_delete_p, delimiter="\t")
+#to_delete=pd.read_csv(to_delete_p, delimiter="\t")
 
 # This function plot a dendogram given a pickel file as the output of dRep
 def plot_clust(file):
@@ -85,10 +85,9 @@ old_db_p=os.path.join(snakemake.input["ref_db"], "dereplicated_genomes/")
 if not os.path.exists(filt_db_path):
     os.mkdir(filt_db_path)
 
-gen_to_del=list(to_delete["genome"])
+#gen_to_del=list(to_delete["genome"])
 
 
 genome_list=os.listdir(old_db_p)
 for entry in genome_list:
-    if entry not in gen_to_del:
-        shutil.copy(old_db_p + entry, filt_db_path+ "/" + entry)
+    shutil.copy(old_db_p + entry, filt_db_path+ "/" + entry)

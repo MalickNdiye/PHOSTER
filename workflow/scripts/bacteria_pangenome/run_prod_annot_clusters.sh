@@ -17,5 +17,5 @@ for fa in ${clust_genome}/*; do
   genome=${filename%.fa}
   genome=${genome%.fna}
   echo -e "\n\t-----annotating ${fa} ..."
-  prodigal -i ${fa} -d ${outdir_fna}/${genome}_genes.fna -a ${outdir_faa}/${genome}_genes.faa
+  prodigal -i ${fa} -d ${outdir_fna}/${genome}_genes.fna -a ${outdir_faa}/${genome}_genes.faa -p meta
 done

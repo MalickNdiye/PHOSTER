@@ -809,246 +809,246 @@ samples:
     - ../data/raw_reads/9P_L2_R2_001_e1Davf1zKx8i.fastq.gz
     - ../data/raw_reads/9P_L3_R1_001_AixXpJ6Trass.fastq.gz
     - ../data/raw_reads/9P_L3_R2_001_DG9q83VidE19.fastq.gz
-  56B:
-    - ../data/raw_reads/56B_L1_R1_001_DfEcQLPhdVQp.fastq.gz
-    - ../data/raw_reads/56B_L2_R2_001_1XTvihLt8xdp.fastq.gz
-    - ../data/raw_reads/56B_L1_R2_001_4QRX5P7d8xCe.fastq.gz
-    - ../data/raw_reads/56B_L2_R1_001_3R28yUDa4iuV.fastq.gz
-  56P:
-    - ../data/raw_reads/56P_L2_R2_001_khNmGOqbdbh8.fastq.gz
-    - ../data/raw_reads/56P_L2_R1_001_yiX9NEjHxjuX.fastq.gz
-    - ../data/raw_reads/56P_L1_R1_001_g2zfKsKNaKaa.fastq.gz
-    - ../data/raw_reads/56P_L1_R2_001_GYoxIO3z0nhp.fastq.gz
-  57B:
-    - ../data/raw_reads/57B_L2_R2_001_xBSXLBf7Hqdj.fastq.gz
-    - ../data/raw_reads/57B_L2_R1_001_MlIXA5ln6sZ7.fastq.gz
-    - ../data/raw_reads/57B_L1_R2_001_cEp7xnzdmNsf.fastq.gz
-    - ../data/raw_reads/57B_L1_R1_001_CqOAr0DFaGcY.fastq.gz
-  57P:
-    - ../data/raw_reads/57P_L1_R2_001_kFHT228FNu0c.fastq.gz
-    - ../data/raw_reads/57P_L2_R2_001_TmqA2i16I7bW.fastq.gz
-    - ../data/raw_reads/57P_L1_R1_001_viKLvhjAFjGk.fastq.gz
-    - ../data/raw_reads/57P_L2_R1_001_IPp2XnpBiwDF.fastq.gz
-  58B:
-    - ../data/raw_reads/58B_L2_R1_001_THeoOF6F3mke.fastq.gz
-    - ../data/raw_reads/58B_L2_R2_001_XSer8MrYaBIw.fastq.gz
-    - ../data/raw_reads/58B_L1_R2_001_yB46B9pK1q6K.fastq.gz
-    - ../data/raw_reads/58B_L1_R1_001_fdNiYAQjRREL.fastq.gz
-  58P:
-    - ../data/raw_reads/58P_L1_R2_001_kBwos8FTI9jK.fastq.gz
-    - ../data/raw_reads/58P_L2_R2_001_VDzEes8u0xRG.fastq.gz
-    - ../data/raw_reads/58P_L1_R1_001_OAv9kHh3aEFL.fastq.gz
-    - ../data/raw_reads/58P_L2_R1_001_hlIpNDURRXgW.fastq.gz
-  59B:
-    - ../data/raw_reads/59B_L2_R1_001_1HXPYHhegokb.fastq.gz
-    - ../data/raw_reads/59B_L1_R2_001_TPvzwskO63Y9.fastq.gz
-    - ../data/raw_reads/59B_L1_R1_001_HfmGMO5kmozZ.fastq.gz
-    - ../data/raw_reads/59B_L2_R2_001_HuVvv5JHn9il.fastq.gz
-  59P:
-    - ../data/raw_reads/59P_L1_R1_001_sOJGBPR1788m.fastq.gz
-    - ../data/raw_reads/59P_L2_R2_001_SVKJd6o2NrN5.fastq.gz
-    - ../data/raw_reads/59P_L1_R2_001_doFTSrCprngb.fastq.gz
-    - ../data/raw_reads/59P_L2_R1_001_9OpVaBrjUeI3.fastq.gz
-  60B:
-    - ../data/raw_reads/60B_L2_R2_001_YG5u1Bg3SD9c.fastq.gz
-    - ../data/raw_reads/60B_L1_R1_001_QAh20Y0XTb17.fastq.gz
-    - ../data/raw_reads/60B_L1_R2_001_60MphlCuUrd0.fastq.gz
-    - ../data/raw_reads/60B_L2_R1_001_8g63ubLn4jxJ.fastq.gz
-  60P:
-    - ../data/raw_reads/60P_L1_R1_001_K8izz3gikk0H.fastq.gz
-    - ../data/raw_reads/60P_L2_R1_001_5vx9FFOv9Q4u.fastq.gz
-    - ../data/raw_reads/60P_L1_R2_001_GxMUDV1fOFsk.fastq.gz
-    - ../data/raw_reads/60P_L2_R2_001_u7jd3ZaPbgHO.fastq.gz
-  61B:
-    - ../data/raw_reads/61B_L1_R2_001_gqF8dikYvUmC.fastq.gz
-    - ../data/raw_reads/61B_L2_R1_001_a0rJVM4QSGyt.fastq.gz
-    - ../data/raw_reads/61B_L1_R1_001_cWe5WYBucO2l.fastq.gz
-    - ../data/raw_reads/61B_L2_R2_001_BKgsL2uKgefM.fastq.gz
-  61P:
-    - ../data/raw_reads/61P_L1_R2_001_MjnIycrLHjOW.fastq.gz
-    - ../data/raw_reads/61P_L2_R2_001_80HhuQUVbANz.fastq.gz
-    - ../data/raw_reads/61P_L2_R1_001_exj0jG6cs9OJ.fastq.gz
-    - ../data/raw_reads/61P_L1_R1_001_Oi1KA8bI4xCG.fastq.gz
-  62B:
-    - ../data/raw_reads/62B_L1_R1_001_tmlk4kCmilqE.fastq.gz
-    - ../data/raw_reads/62B_L1_R2_001_Hzpk2DnbTMxF.fastq.gz
-    - ../data/raw_reads/62B_L2_R1_001_s8FSf7AtlyUr.fastq.gz
-    - ../data/raw_reads/62B_L2_R2_001_AXbH7c6Zltpe.fastq.gz
-  62P:
-    - ../data/raw_reads/62P_L1_R1_001_I6sHu2Mpv8oP.fastq.gz
-    - ../data/raw_reads/62P_L1_R2_001_AqbYwEOU7cg4.fastq.gz
-    - ../data/raw_reads/62P_L2_R1_001_IDRXaPFl8mQ0.fastq.gz
-    - ../data/raw_reads/62P_L2_R2_001_0tjHPcliv53S.fastq.gz
-  63B:
-    - ../data/raw_reads/63B_L2_R2_001_H0RRv6shdwzc.fastq.gz
-    - ../data/raw_reads/63B_L1_R2_001_fKyBMVAFxaED.fastq.gz
-    - ../data/raw_reads/63B_L1_R1_001_Le7sv1ASdsRi.fastq.gz
-    - ../data/raw_reads/63B_L2_R1_001_R2wxzMbOVGiQ.fastq.gz
-  63P:
-    - ../data/raw_reads/63P_L1_R1_001_g7rcqSg5jzjm.fastq.gz
-    - ../data/raw_reads/63P_L2_R2_001_SgKAahaYdQH0.fastq.gz
-    - ../data/raw_reads/63P_L2_R1_001_paGEn6SHUimC.fastq.gz
-    - ../data/raw_reads/63P_L1_R2_001_5C98npAPVogO.fastq.gz
-  64B:
-    - ../data/raw_reads/64B_L2_R1_001_PDVtSNNufJph.fastq.gz
-    - ../data/raw_reads/64B_L1_R1_001_zv5f3FbSdeuF.fastq.gz
-    - ../data/raw_reads/64B_L1_R2_001_zdoxeVkiTN7n.fastq.gz
-    - ../data/raw_reads/64B_L2_R2_001_kfVtoSCZA4Lg.fastq.gz
-  64P:
-    - ../data/raw_reads/64P_L1_R2_001_vhSHQzAN4Efv.fastq.gz
-    - ../data/raw_reads/64P_L1_R1_001_RU5qC2d6JVVl.fastq.gz
-    - ../data/raw_reads/64P_L2_R1_001_HRDxnviGBtVN.fastq.gz
-    - ../data/raw_reads/64P_L2_R2_001_HQ72wI4JjgYb.fastq.gz
-  65B:
-    - ../data/raw_reads/65B_L2_R1_001_BUvfzcvgFcyM.fastq.gz
-    - ../data/raw_reads/65B_L1_R1_001_Ti3f2OKlAhPW.fastq.gz
-    - ../data/raw_reads/65B_L1_R2_001_DEp3ZrEWQQNO.fastq.gz
-    - ../data/raw_reads/65B_L2_R2_001_S3soysjRkE53.fastq.gz
-  65P:
-    - ../data/raw_reads/65P_L1_R1_001_2R4ojnPwRKby.fastq.gz
-    - ../data/raw_reads/65P_L2_R2_001_CtHhvcHqVT5g.fastq.gz
-    - ../data/raw_reads/65P_L1_R2_001_JG5L916s2gq5.fastq.gz
-    - ../data/raw_reads/65P_L2_R1_001_joUKF2HElFtl.fastq.gz
-  66B:
-    - ../data/raw_reads/66B_L2_R1_001_6BAkzJvHOQfX.fastq.gz
-    - ../data/raw_reads/66B_L1_R2_001_oh2d73O6hw8w.fastq.gz
-    - ../data/raw_reads/66B_L2_R2_001_djinN6yrsewl.fastq.gz
-    - ../data/raw_reads/66B_L1_R1_001_7q5K87Qvn9eh.fastq.gz
-  66P:
-    - ../data/raw_reads/66P_L1_R1_001_YipIs2zEQ9Xv.fastq.gz
-    - ../data/raw_reads/66P_L1_R2_001_Wf9d8ybKXegG.fastq.gz
-    - ../data/raw_reads/66P_L2_R1_001_TRZVK4NfjqlX.fastq.gz
-    - ../data/raw_reads/66P_L2_R2_001_zEX7g6FNkArB.fastq.gz
-  67B:
-    - ../data/raw_reads/67B_L1_R1_001_RgHjHGBSq0PA.fastq.gz
-    - ../data/raw_reads/67B_L2_R1_001_KNAoL7zOWjas.fastq.gz
-    - ../data/raw_reads/67B_L1_R2_001_tmFBcLSRXvt8.fastq.gz
-    - ../data/raw_reads/67B_L2_R2_001_B9vap1bDPBpW.fastq.gz
-  67P:
-    - ../data/raw_reads/67P_L1_R1_001_MzaxxahtijWG.fastq.gz
-    - ../data/raw_reads/67P_L1_R2_001_NJGP0iYTOnPL.fastq.gz
-    - ../data/raw_reads/67P_L2_R2_001_ZwYCAUjZml4G.fastq.gz
-    - ../data/raw_reads/67P_L2_R1_001_huX2IwqDh4R2.fastq.gz
-  68B:
-    - ../data/raw_reads/68B_L2_R2_001_X0FrtqbwasTY.fastq.gz
-    - ../data/raw_reads/68B_L1_R2_001_nL0DyuEOi8pm.fastq.gz
-    - ../data/raw_reads/68B_L1_R1_001_ZO9roa7UKXQu.fastq.gz
-    - ../data/raw_reads/68B_L2_R1_001_xqm2yGf65mJE.fastq.gz
-  68P:
-    - ../data/raw_reads/68P_L1_R1_001_8ISYfAWmCF7S.fastq.gz
-    - ../data/raw_reads/68P_L2_R1_001_xshFBGUkhqB0.fastq.gz
-    - ../data/raw_reads/68P_L1_R2_001_TgJVmgRukQl4.fastq.gz
-    - ../data/raw_reads/68P_L2_R2_001_qYYgRYbDWv4j.fastq.gz
-  69B:
-    - ../data/raw_reads/69B_L2_R1_001_w1OtLiZHF44M.fastq.gz
-    - ../data/raw_reads/69B_L1_R2_001_iagEm10BfnL2.fastq.gz
-    - ../data/raw_reads/69B_L2_R2_001_gajM6sf7df5V.fastq.gz
-    - ../data/raw_reads/69B_L1_R1_001_tQ3nRkKRXx7F.fastq.gz
-  69P:
-    - ../data/raw_reads/69P_L2_R2_001_cFkBCt8oSYi1.fastq.gz
-    - ../data/raw_reads/69P_L1_R2_001_GbDzBoUmdRag.fastq.gz
-    - ../data/raw_reads/69P_L2_R1_001_Xvs26Bug8Ef7.fastq.gz
-    - ../data/raw_reads/69P_L1_R1_001_0ypQ8FY8PvaT.fastq.gz
-  70B:
-    - ../data/raw_reads/70B_L2_R2_001_VakPBjfLoQ3B.fastq.gz
-    - ../data/raw_reads/70B_L1_R2_001_EOwyoAJ49x8J.fastq.gz
-    - ../data/raw_reads/70B_L2_R1_001_eDbQjLY5AFCQ.fastq.gz
-    - ../data/raw_reads/70B_L1_R1_001_NOlvmHNI5Rz4.fastq.gz
-  70P:
-    - ../data/raw_reads/70P_L2_R2_001_mg7vF2oLvQsw.fastq.gz
-    - ../data/raw_reads/70P_L1_R1_001_k7X3eNJpIW1z.fastq.gz
-    - ../data/raw_reads/70P_L1_R2_001_geG6PitVpwIL.fastq.gz
-    - ../data/raw_reads/70P_L2_R1_001_Jn388l5sXIJY.fastq.gz
-  71B:
-    - ../data/raw_reads/71B_L2_R1_001_JvpJF1NC0H7n.fastq.gz
-    - ../data/raw_reads/71B_L1_R1_001_UdNc3sTINUqS.fastq.gz
-    - ../data/raw_reads/71B_L1_R2_001_1OI4hfmNJKOK.fastq.gz
-    - ../data/raw_reads/71B_L2_R2_001_TBn3w8yvfvB7.fastq.gz
-  71P:
-    - ../data/raw_reads/71P_L1_R2_001_7mknPkW6uIHg.fastq.gz
-    - ../data/raw_reads/71P_L2_R1_001_4XJ21r2moHOJ.fastq.gz
-    - ../data/raw_reads/71P_L2_R2_001_LKzruUDpdrvI.fastq.gz
-    - ../data/raw_reads/71P_L1_R1_001_hGdd72b6Vakn.fastq.gz
-  72B:
-    - ../data/raw_reads/72B_L2_R1_001_hCdcI5yZuIGS.fastq.gz
-    - ../data/raw_reads/72B_L1_R1_001_RMzsD4M8Tutl.fastq.gz
-    - ../data/raw_reads/72B_L2_R2_001_syiGVXy9ULfF.fastq.gz
-    - ../data/raw_reads/72B_L1_R2_001_gA6MwCxdVfJi.fastq.gz
-  72P:
-    - ../data/raw_reads/72P_L1_R1_001_cf1W3CmdJrpI.fastq.gz
-    - ../data/raw_reads/72P_L2_R1_001_qBOhnrS4rItR.fastq.gz
-    - ../data/raw_reads/72P_L2_R2_001_Rx49hVm65q4Z.fastq.gz
-    - ../data/raw_reads/72P_L1_R2_001_8X56mU4yFXTt.fastq.gz
-  73B:
-    - ../data/raw_reads/73B_L2_R1_001_50gNSfh5kxJp.fastq.gz
-    - ../data/raw_reads/73B_L1_R2_001_GulK6ZQjSkkY.fastq.gz
-    - ../data/raw_reads/73B_L1_R1_001_gRoO9KgexAVD.fastq.gz
-    - ../data/raw_reads/73B_L2_R2_001_HTOGzHvfH7Jk.fastq.gz
-  73P:
-    - ../data/raw_reads/73P_L2_R2_001_LOdEs6QBOsNS.fastq.gz
-    - ../data/raw_reads/73P_L1_R2_001_R7vMWIHdnZa6.fastq.gz
-    - ../data/raw_reads/73P_L1_R1_001_VHUceg82hr5x.fastq.gz
-    - ../data/raw_reads/73P_L2_R1_001_vInd50sbppB0.fastq.gz
-  74B:
-    - ../data/raw_reads/74B_L1_R1_001_E0AtAnHKJGID.fastq.gz
-    - ../data/raw_reads/74B_L2_R2_001_AMmfdBBrCGqK.fastq.gz
-    - ../data/raw_reads/74B_L2_R1_001_673T4mc8lsMW.fastq.gz
-    - ../data/raw_reads/74B_L1_R2_001_6QCpz2l2Lyb9.fastq.gz
-  74P:
-    - ../data/raw_reads/74P_L1_R1_001_l1ApdISAHOj9.fastq.gz
-    - ../data/raw_reads/74P_L2_R2_001_SoMvX19yCiDO.fastq.gz
-    - ../data/raw_reads/74P_L2_R1_001_Yq0bQKbK1pE9.fastq.gz
-    - ../data/raw_reads/74P_L1_R2_001_Bsqvag0Ip2jW.fastq.gz
-  75B:
-    - ../data/raw_reads/75B_L1_R2_001_Gw3I4gH1yPYV.fastq.gz
-    - ../data/raw_reads/75B_L2_R1_001_4ySEVzCvYqr3.fastq.gz
-    - ../data/raw_reads/75B_L1_R1_001_9bgt1ZS0zfee.fastq.gz
-    - ../data/raw_reads/75B_L2_R2_001_MSMdd5ESy6EJ.fastq.gz
-  75P:
-    - ../data/raw_reads/75P_L1_R1_001_nBrqPQzEugUv.fastq.gz
-    - ../data/raw_reads/75P_L2_R1_001_vsqRt9nFDPXE.fastq.gz
-    - ../data/raw_reads/75P_L1_R2_001_oTD9UCuNwAYX.fastq.gz
-    - ../data/raw_reads/75P_L2_R2_001_JzXGMassjBhL.fastq.gz
-  76B:
-    - ../data/raw_reads/76B_L2_R2_001_tQNFYO57tv6G.fastq.gz
-    - ../data/raw_reads/76B_L1_R2_001_s7JZshkTFFCO.fastq.gz
-    - ../data/raw_reads/76B_L2_R1_001_7CindRqAGcGR.fastq.gz
-    - ../data/raw_reads/76B_L1_R1_001_9brKRQt2OI2Y.fastq.gz
-  76P:
-    - ../data/raw_reads/76P_L1_R2_001_OkMOc8JMsGWT.fastq.gz
-    - ../data/raw_reads/76P_L2_R1_001_MNuwmDb6PDhN.fastq.gz
-    - ../data/raw_reads/76P_L2_R2_001_1pZtS8zxhIb4.fastq.gz
-    - ../data/raw_reads/76P_L1_R1_001_FlKHupXsjguw.fastq.gz
-  77B:
-    - ../data/raw_reads/77B_L1_R1_001_WYM3OkVpUA8d.fastq.gz
-    - ../data/raw_reads/77B_L2_R1_001_xLnNzuDWV9uW.fastq.gz
-    - ../data/raw_reads/77B_L2_R2_001_0mQbLbEVfPKk.fastq.gz
-    - ../data/raw_reads/77B_L1_R2_001_TtPWygxdGTUj.fastq.gz
-  77P:
-    - ../data/raw_reads/77P_L2_R1_001_a9S3b0hbvcc4.fastq.gz
-    - ../data/raw_reads/77P_L2_R2_001_9grajlRnGecL.fastq.gz
-    - ../data/raw_reads/77P_L1_R2_001_UuNP5ypY9Bzm.fastq.gz
-    - ../data/raw_reads/77P_L1_R1_001_agE782gLxtDm.fastq.gz
-  78B:
-    - ../data/raw_reads/78B_L2_R1_001_qvZsIKZLJFoE.fastq.gz
-    - ../data/raw_reads/78B_L1_R1_001_CLwV62pq4DFk.fastq.gz
-    - ../data/raw_reads/78B_L1_R2_001_8jm62VNRy2yU.fastq.gz
-    - ../data/raw_reads/78B_L2_R2_001_9UNFbEiB8Btx.fastq.gz
-  78P:
-    - ../data/raw_reads/78P_L1_R1_001_BgTEjX0qyu3y.fastq.gz
-    - ../data/raw_reads/78P_L2_R2_001_0ZDB8fsSpvmv.fastq.gz
-    - ../data/raw_reads/78P_L1_R2_001_zev6lEqoAho5.fastq.gz
-    - ../data/raw_reads/78P_L2_R1_001_wKEkwr5UdtaF.fastq.gz
-  79B:
-    - ../data/raw_reads/79B_L1_R2_001_7QjDhmQVeCCE.fastq.gz
-    - ../data/raw_reads/79B_L2_R2_001_MKeh5tJ8qGpV.fastq.gz
-    - ../data/raw_reads/79B_L2_R1_001_J9PxpImVDA3g.fastq.gz
-    - ../data/raw_reads/79B_L1_R1_001_dJWI3NsKBpeD.fastq.gz
-  79P:
-    - ../data/raw_reads/79P_L2_R1_001_8cUa4zOc75MR.fastq.gz
-    - ../data/raw_reads/79P_L1_R1_001_MC43EMuJ3Enq.fastq.gz
-    - ../data/raw_reads/79P_L1_R2_001_DZFxrAcXut8Z.fastq.gz
-    - ../data/raw_reads/79P_L2_R2_001_bG4W8xGWjvP3.fastq.gz
+  # 56B:
+  #   - ../data/raw_reads/56B_L1_R1_001_DfEcQLPhdVQp.fastq.gz
+  #   - ../data/raw_reads/56B_L2_R2_001_1XTvihLt8xdp.fastq.gz
+  #   - ../data/raw_reads/56B_L1_R2_001_4QRX5P7d8xCe.fastq.gz
+  #   - ../data/raw_reads/56B_L2_R1_001_3R28yUDa4iuV.fastq.gz
+  # 56P:
+  #   - ../data/raw_reads/56P_L2_R2_001_khNmGOqbdbh8.fastq.gz
+  #   - ../data/raw_reads/56P_L2_R1_001_yiX9NEjHxjuX.fastq.gz
+  #   - ../data/raw_reads/56P_L1_R1_001_g2zfKsKNaKaa.fastq.gz
+  #   - ../data/raw_reads/56P_L1_R2_001_GYoxIO3z0nhp.fastq.gz
+  # 57B:
+  #   - ../data/raw_reads/57B_L2_R2_001_xBSXLBf7Hqdj.fastq.gz
+  #   - ../data/raw_reads/57B_L2_R1_001_MlIXA5ln6sZ7.fastq.gz
+  #   - ../data/raw_reads/57B_L1_R2_001_cEp7xnzdmNsf.fastq.gz
+  #   - ../data/raw_reads/57B_L1_R1_001_CqOAr0DFaGcY.fastq.gz
+  # 57P:
+  #   - ../data/raw_reads/57P_L1_R2_001_kFHT228FNu0c.fastq.gz
+  #   - ../data/raw_reads/57P_L2_R2_001_TmqA2i16I7bW.fastq.gz
+  #   - ../data/raw_reads/57P_L1_R1_001_viKLvhjAFjGk.fastq.gz
+  #   - ../data/raw_reads/57P_L2_R1_001_IPp2XnpBiwDF.fastq.gz
+  # 58B:
+  #   - ../data/raw_reads/58B_L2_R1_001_THeoOF6F3mke.fastq.gz
+  #   - ../data/raw_reads/58B_L2_R2_001_XSer8MrYaBIw.fastq.gz
+  #   - ../data/raw_reads/58B_L1_R2_001_yB46B9pK1q6K.fastq.gz
+  #   - ../data/raw_reads/58B_L1_R1_001_fdNiYAQjRREL.fastq.gz
+  # 58P:
+  #   - ../data/raw_reads/58P_L1_R2_001_kBwos8FTI9jK.fastq.gz
+  #   - ../data/raw_reads/58P_L2_R2_001_VDzEes8u0xRG.fastq.gz
+  #   - ../data/raw_reads/58P_L1_R1_001_OAv9kHh3aEFL.fastq.gz
+  #   - ../data/raw_reads/58P_L2_R1_001_hlIpNDURRXgW.fastq.gz
+  # 59B:
+  #   - ../data/raw_reads/59B_L2_R1_001_1HXPYHhegokb.fastq.gz
+  #   - ../data/raw_reads/59B_L1_R2_001_TPvzwskO63Y9.fastq.gz
+  #   - ../data/raw_reads/59B_L1_R1_001_HfmGMO5kmozZ.fastq.gz
+  #   - ../data/raw_reads/59B_L2_R2_001_HuVvv5JHn9il.fastq.gz
+  # 59P:
+  #   - ../data/raw_reads/59P_L1_R1_001_sOJGBPR1788m.fastq.gz
+  #   - ../data/raw_reads/59P_L2_R2_001_SVKJd6o2NrN5.fastq.gz
+  #   - ../data/raw_reads/59P_L1_R2_001_doFTSrCprngb.fastq.gz
+  #   - ../data/raw_reads/59P_L2_R1_001_9OpVaBrjUeI3.fastq.gz
+  # 60B:
+  #   - ../data/raw_reads/60B_L2_R2_001_YG5u1Bg3SD9c.fastq.gz
+  #   - ../data/raw_reads/60B_L1_R1_001_QAh20Y0XTb17.fastq.gz
+  #   - ../data/raw_reads/60B_L1_R2_001_60MphlCuUrd0.fastq.gz
+  #   - ../data/raw_reads/60B_L2_R1_001_8g63ubLn4jxJ.fastq.gz
+  # 60P:
+  #   - ../data/raw_reads/60P_L1_R1_001_K8izz3gikk0H.fastq.gz
+  #   - ../data/raw_reads/60P_L2_R1_001_5vx9FFOv9Q4u.fastq.gz
+  #   - ../data/raw_reads/60P_L1_R2_001_GxMUDV1fOFsk.fastq.gz
+  #   - ../data/raw_reads/60P_L2_R2_001_u7jd3ZaPbgHO.fastq.gz
+  # 61B:
+  #   - ../data/raw_reads/61B_L1_R2_001_gqF8dikYvUmC.fastq.gz
+  #   - ../data/raw_reads/61B_L2_R1_001_a0rJVM4QSGyt.fastq.gz
+  #   - ../data/raw_reads/61B_L1_R1_001_cWe5WYBucO2l.fastq.gz
+  #   - ../data/raw_reads/61B_L2_R2_001_BKgsL2uKgefM.fastq.gz
+  # 61P:
+  #   - ../data/raw_reads/61P_L1_R2_001_MjnIycrLHjOW.fastq.gz
+  #   - ../data/raw_reads/61P_L2_R2_001_80HhuQUVbANz.fastq.gz
+  #   - ../data/raw_reads/61P_L2_R1_001_exj0jG6cs9OJ.fastq.gz
+  #   - ../data/raw_reads/61P_L1_R1_001_Oi1KA8bI4xCG.fastq.gz
+  # 62B:
+  #   - ../data/raw_reads/62B_L1_R1_001_tmlk4kCmilqE.fastq.gz
+  #   - ../data/raw_reads/62B_L1_R2_001_Hzpk2DnbTMxF.fastq.gz
+  #   - ../data/raw_reads/62B_L2_R1_001_s8FSf7AtlyUr.fastq.gz
+  #   - ../data/raw_reads/62B_L2_R2_001_AXbH7c6Zltpe.fastq.gz
+  # 62P:
+  #   - ../data/raw_reads/62P_L1_R1_001_I6sHu2Mpv8oP.fastq.gz
+  #   - ../data/raw_reads/62P_L1_R2_001_AqbYwEOU7cg4.fastq.gz
+  #   - ../data/raw_reads/62P_L2_R1_001_IDRXaPFl8mQ0.fastq.gz
+  #   - ../data/raw_reads/62P_L2_R2_001_0tjHPcliv53S.fastq.gz
+  # 63B:
+  #   - ../data/raw_reads/63B_L2_R2_001_H0RRv6shdwzc.fastq.gz
+  #   - ../data/raw_reads/63B_L1_R2_001_fKyBMVAFxaED.fastq.gz
+  #   - ../data/raw_reads/63B_L1_R1_001_Le7sv1ASdsRi.fastq.gz
+  #   - ../data/raw_reads/63B_L2_R1_001_R2wxzMbOVGiQ.fastq.gz
+  # 63P:
+  #   - ../data/raw_reads/63P_L1_R1_001_g7rcqSg5jzjm.fastq.gz
+  #   - ../data/raw_reads/63P_L2_R2_001_SgKAahaYdQH0.fastq.gz
+  #   - ../data/raw_reads/63P_L2_R1_001_paGEn6SHUimC.fastq.gz
+  #   - ../data/raw_reads/63P_L1_R2_001_5C98npAPVogO.fastq.gz
+  # 64B:
+  #   - ../data/raw_reads/64B_L2_R1_001_PDVtSNNufJph.fastq.gz
+  #   - ../data/raw_reads/64B_L1_R1_001_zv5f3FbSdeuF.fastq.gz
+  #   - ../data/raw_reads/64B_L1_R2_001_zdoxeVkiTN7n.fastq.gz
+  #   - ../data/raw_reads/64B_L2_R2_001_kfVtoSCZA4Lg.fastq.gz
+  # 64P:
+  #   - ../data/raw_reads/64P_L1_R2_001_vhSHQzAN4Efv.fastq.gz
+  #   - ../data/raw_reads/64P_L1_R1_001_RU5qC2d6JVVl.fastq.gz
+  #   - ../data/raw_reads/64P_L2_R1_001_HRDxnviGBtVN.fastq.gz
+  #   - ../data/raw_reads/64P_L2_R2_001_HQ72wI4JjgYb.fastq.gz
+  # 65B:
+  #   - ../data/raw_reads/65B_L2_R1_001_BUvfzcvgFcyM.fastq.gz
+  #   - ../data/raw_reads/65B_L1_R1_001_Ti3f2OKlAhPW.fastq.gz
+  #   - ../data/raw_reads/65B_L1_R2_001_DEp3ZrEWQQNO.fastq.gz
+  #   - ../data/raw_reads/65B_L2_R2_001_S3soysjRkE53.fastq.gz
+  # 65P:
+  #   - ../data/raw_reads/65P_L1_R1_001_2R4ojnPwRKby.fastq.gz
+  #   - ../data/raw_reads/65P_L2_R2_001_CtHhvcHqVT5g.fastq.gz
+  #   - ../data/raw_reads/65P_L1_R2_001_JG5L916s2gq5.fastq.gz
+  #   - ../data/raw_reads/65P_L2_R1_001_joUKF2HElFtl.fastq.gz
+  # 66B:
+  #   - ../data/raw_reads/66B_L2_R1_001_6BAkzJvHOQfX.fastq.gz
+  #   - ../data/raw_reads/66B_L1_R2_001_oh2d73O6hw8w.fastq.gz
+  #   - ../data/raw_reads/66B_L2_R2_001_djinN6yrsewl.fastq.gz
+  #   - ../data/raw_reads/66B_L1_R1_001_7q5K87Qvn9eh.fastq.gz
+  # 66P:
+  #   - ../data/raw_reads/66P_L1_R1_001_YipIs2zEQ9Xv.fastq.gz
+  #   - ../data/raw_reads/66P_L1_R2_001_Wf9d8ybKXegG.fastq.gz
+  #   - ../data/raw_reads/66P_L2_R1_001_TRZVK4NfjqlX.fastq.gz
+  #   - ../data/raw_reads/66P_L2_R2_001_zEX7g6FNkArB.fastq.gz
+  # 67B:
+  #   - ../data/raw_reads/67B_L1_R1_001_RgHjHGBSq0PA.fastq.gz
+  #   - ../data/raw_reads/67B_L2_R1_001_KNAoL7zOWjas.fastq.gz
+  #   - ../data/raw_reads/67B_L1_R2_001_tmFBcLSRXvt8.fastq.gz
+  #   - ../data/raw_reads/67B_L2_R2_001_B9vap1bDPBpW.fastq.gz
+  # 67P:
+  #   - ../data/raw_reads/67P_L1_R1_001_MzaxxahtijWG.fastq.gz
+  #   - ../data/raw_reads/67P_L1_R2_001_NJGP0iYTOnPL.fastq.gz
+  #   - ../data/raw_reads/67P_L2_R2_001_ZwYCAUjZml4G.fastq.gz
+  #   - ../data/raw_reads/67P_L2_R1_001_huX2IwqDh4R2.fastq.gz
+  # 68B:
+  #   - ../data/raw_reads/68B_L2_R2_001_X0FrtqbwasTY.fastq.gz
+  #   - ../data/raw_reads/68B_L1_R2_001_nL0DyuEOi8pm.fastq.gz
+  #   - ../data/raw_reads/68B_L1_R1_001_ZO9roa7UKXQu.fastq.gz
+  #   - ../data/raw_reads/68B_L2_R1_001_xqm2yGf65mJE.fastq.gz
+  # 68P:
+  #   - ../data/raw_reads/68P_L1_R1_001_8ISYfAWmCF7S.fastq.gz
+  #   - ../data/raw_reads/68P_L2_R1_001_xshFBGUkhqB0.fastq.gz
+  #   - ../data/raw_reads/68P_L1_R2_001_TgJVmgRukQl4.fastq.gz
+  #   - ../data/raw_reads/68P_L2_R2_001_qYYgRYbDWv4j.fastq.gz
+  # 69B:
+  #   - ../data/raw_reads/69B_L2_R1_001_w1OtLiZHF44M.fastq.gz
+  #   - ../data/raw_reads/69B_L1_R2_001_iagEm10BfnL2.fastq.gz
+  #   - ../data/raw_reads/69B_L2_R2_001_gajM6sf7df5V.fastq.gz
+  #   - ../data/raw_reads/69B_L1_R1_001_tQ3nRkKRXx7F.fastq.gz
+  # 69P:
+  #   - ../data/raw_reads/69P_L2_R2_001_cFkBCt8oSYi1.fastq.gz
+  #   - ../data/raw_reads/69P_L1_R2_001_GbDzBoUmdRag.fastq.gz
+  #   - ../data/raw_reads/69P_L2_R1_001_Xvs26Bug8Ef7.fastq.gz
+  #   - ../data/raw_reads/69P_L1_R1_001_0ypQ8FY8PvaT.fastq.gz
+  # 70B:
+  #   - ../data/raw_reads/70B_L2_R2_001_VakPBjfLoQ3B.fastq.gz
+  #   - ../data/raw_reads/70B_L1_R2_001_EOwyoAJ49x8J.fastq.gz
+  #   - ../data/raw_reads/70B_L2_R1_001_eDbQjLY5AFCQ.fastq.gz
+  #   - ../data/raw_reads/70B_L1_R1_001_NOlvmHNI5Rz4.fastq.gz
+  # 70P:
+  #   - ../data/raw_reads/70P_L2_R2_001_mg7vF2oLvQsw.fastq.gz
+  #   - ../data/raw_reads/70P_L1_R1_001_k7X3eNJpIW1z.fastq.gz
+  #   - ../data/raw_reads/70P_L1_R2_001_geG6PitVpwIL.fastq.gz
+  #   - ../data/raw_reads/70P_L2_R1_001_Jn388l5sXIJY.fastq.gz
+  # 71B:
+  #   - ../data/raw_reads/71B_L2_R1_001_JvpJF1NC0H7n.fastq.gz
+  #   - ../data/raw_reads/71B_L1_R1_001_UdNc3sTINUqS.fastq.gz
+  #   - ../data/raw_reads/71B_L1_R2_001_1OI4hfmNJKOK.fastq.gz
+  #   - ../data/raw_reads/71B_L2_R2_001_TBn3w8yvfvB7.fastq.gz
+  # 71P:
+  #   - ../data/raw_reads/71P_L1_R2_001_7mknPkW6uIHg.fastq.gz
+  #   - ../data/raw_reads/71P_L2_R1_001_4XJ21r2moHOJ.fastq.gz
+  #   - ../data/raw_reads/71P_L2_R2_001_LKzruUDpdrvI.fastq.gz
+  #   - ../data/raw_reads/71P_L1_R1_001_hGdd72b6Vakn.fastq.gz
+  # 72B:
+  #   - ../data/raw_reads/72B_L2_R1_001_hCdcI5yZuIGS.fastq.gz
+  #   - ../data/raw_reads/72B_L1_R1_001_RMzsD4M8Tutl.fastq.gz
+  #   - ../data/raw_reads/72B_L2_R2_001_syiGVXy9ULfF.fastq.gz
+  #   - ../data/raw_reads/72B_L1_R2_001_gA6MwCxdVfJi.fastq.gz
+  # 72P:
+  #   - ../data/raw_reads/72P_L1_R1_001_cf1W3CmdJrpI.fastq.gz
+  #   - ../data/raw_reads/72P_L2_R1_001_qBOhnrS4rItR.fastq.gz
+  #   - ../data/raw_reads/72P_L2_R2_001_Rx49hVm65q4Z.fastq.gz
+  #   - ../data/raw_reads/72P_L1_R2_001_8X56mU4yFXTt.fastq.gz
+  # 73B:
+  #   - ../data/raw_reads/73B_L2_R1_001_50gNSfh5kxJp.fastq.gz
+  #   - ../data/raw_reads/73B_L1_R2_001_GulK6ZQjSkkY.fastq.gz
+  #   - ../data/raw_reads/73B_L1_R1_001_gRoO9KgexAVD.fastq.gz
+  #   - ../data/raw_reads/73B_L2_R2_001_HTOGzHvfH7Jk.fastq.gz
+  # 73P:
+  #   - ../data/raw_reads/73P_L2_R2_001_LOdEs6QBOsNS.fastq.gz
+  #   - ../data/raw_reads/73P_L1_R2_001_R7vMWIHdnZa6.fastq.gz
+  #   - ../data/raw_reads/73P_L1_R1_001_VHUceg82hr5x.fastq.gz
+  #   - ../data/raw_reads/73P_L2_R1_001_vInd50sbppB0.fastq.gz
+  # 74B:
+  #   - ../data/raw_reads/74B_L1_R1_001_E0AtAnHKJGID.fastq.gz
+  #   - ../data/raw_reads/74B_L2_R2_001_AMmfdBBrCGqK.fastq.gz
+  #   - ../data/raw_reads/74B_L2_R1_001_673T4mc8lsMW.fastq.gz
+  #   - ../data/raw_reads/74B_L1_R2_001_6QCpz2l2Lyb9.fastq.gz
+  # 74P:
+  #   - ../data/raw_reads/74P_L1_R1_001_l1ApdISAHOj9.fastq.gz
+  #   - ../data/raw_reads/74P_L2_R2_001_SoMvX19yCiDO.fastq.gz
+  #   - ../data/raw_reads/74P_L2_R1_001_Yq0bQKbK1pE9.fastq.gz
+  #   - ../data/raw_reads/74P_L1_R2_001_Bsqvag0Ip2jW.fastq.gz
+  # 75B:
+  #   - ../data/raw_reads/75B_L1_R2_001_Gw3I4gH1yPYV.fastq.gz
+  #   - ../data/raw_reads/75B_L2_R1_001_4ySEVzCvYqr3.fastq.gz
+  #   - ../data/raw_reads/75B_L1_R1_001_9bgt1ZS0zfee.fastq.gz
+  #   - ../data/raw_reads/75B_L2_R2_001_MSMdd5ESy6EJ.fastq.gz
+  # 75P:
+  #   - ../data/raw_reads/75P_L1_R1_001_nBrqPQzEugUv.fastq.gz
+  #   - ../data/raw_reads/75P_L2_R1_001_vsqRt9nFDPXE.fastq.gz
+  #   - ../data/raw_reads/75P_L1_R2_001_oTD9UCuNwAYX.fastq.gz
+  #   - ../data/raw_reads/75P_L2_R2_001_JzXGMassjBhL.fastq.gz
+  # 76B:
+  #   - ../data/raw_reads/76B_L2_R2_001_tQNFYO57tv6G.fastq.gz
+  #   - ../data/raw_reads/76B_L1_R2_001_s7JZshkTFFCO.fastq.gz
+  #   - ../data/raw_reads/76B_L2_R1_001_7CindRqAGcGR.fastq.gz
+  #   - ../data/raw_reads/76B_L1_R1_001_9brKRQt2OI2Y.fastq.gz
+  # 76P:
+  #   - ../data/raw_reads/76P_L1_R2_001_OkMOc8JMsGWT.fastq.gz
+  #   - ../data/raw_reads/76P_L2_R1_001_MNuwmDb6PDhN.fastq.gz
+  #   - ../data/raw_reads/76P_L2_R2_001_1pZtS8zxhIb4.fastq.gz
+  #   - ../data/raw_reads/76P_L1_R1_001_FlKHupXsjguw.fastq.gz
+  # 77B:
+  #   - ../data/raw_reads/77B_L1_R1_001_WYM3OkVpUA8d.fastq.gz
+  #   - ../data/raw_reads/77B_L2_R1_001_xLnNzuDWV9uW.fastq.gz
+  #   - ../data/raw_reads/77B_L2_R2_001_0mQbLbEVfPKk.fastq.gz
+  #   - ../data/raw_reads/77B_L1_R2_001_TtPWygxdGTUj.fastq.gz
+  # 77P:
+  #   - ../data/raw_reads/77P_L2_R1_001_a9S3b0hbvcc4.fastq.gz
+  #   - ../data/raw_reads/77P_L2_R2_001_9grajlRnGecL.fastq.gz
+  #   - ../data/raw_reads/77P_L1_R2_001_UuNP5ypY9Bzm.fastq.gz
+  #   - ../data/raw_reads/77P_L1_R1_001_agE782gLxtDm.fastq.gz
+  # 78B:
+  #   - ../data/raw_reads/78B_L2_R1_001_qvZsIKZLJFoE.fastq.gz
+  #   - ../data/raw_reads/78B_L1_R1_001_CLwV62pq4DFk.fastq.gz
+  #   - ../data/raw_reads/78B_L1_R2_001_8jm62VNRy2yU.fastq.gz
+  #   - ../data/raw_reads/78B_L2_R2_001_9UNFbEiB8Btx.fastq.gz
+  # 78P:
+  #   - ../data/raw_reads/78P_L1_R1_001_BgTEjX0qyu3y.fastq.gz
+  #   - ../data/raw_reads/78P_L2_R2_001_0ZDB8fsSpvmv.fastq.gz
+  #   - ../data/raw_reads/78P_L1_R2_001_zev6lEqoAho5.fastq.gz
+  #   - ../data/raw_reads/78P_L2_R1_001_wKEkwr5UdtaF.fastq.gz
+  # 79B:
+  #   - ../data/raw_reads/79B_L1_R2_001_7QjDhmQVeCCE.fastq.gz
+  #   - ../data/raw_reads/79B_L2_R2_001_MKeh5tJ8qGpV.fastq.gz
+  #   - ../data/raw_reads/79B_L2_R1_001_J9PxpImVDA3g.fastq.gz
+  #   - ../data/raw_reads/79B_L1_R1_001_dJWI3NsKBpeD.fastq.gz
+  # 79P:
+  #   - ../data/raw_reads/79P_L2_R1_001_8cUa4zOc75MR.fastq.gz
+  #   - ../data/raw_reads/79P_L1_R1_001_MC43EMuJ3Enq.fastq.gz
+  #   - ../data/raw_reads/79P_L1_R2_001_DZFxrAcXut8Z.fastq.gz
+  #   - ../data/raw_reads/79P_L2_R2_001_bG4W8xGWjvP3.fastq.gz
 
 sam_names:
  - 10
@@ -1100,110 +1100,139 @@ sam_names:
  - 7
  - 8
  - 9
- - 56
- - 57
- - 58
- - 59
- - 60
- - 61
- - 62
- - 63
- - 64
- - 65
- - 66
- - 67
- - 68
- - 69
- - 70
- - 71
- - 72
- - 73
- - 74
- - 75
- - 76
- - 77
- - 78
- - 79
+#  - 56
+#  - 57
+#  - 58
+#  - 59
+#  - 60
+#  - 61
+#  - 62
+#  - 63
+#  - 64
+#  - 65
+#  - 66
+#  - 67
+#  - 68
+#  - 69
+#  - 70
+#  - 71
+#  - 72
+#  - 73
+#  - 74
+#  - 75
+#  - 76
+#  - 77
+#  - 78
+#  - 79
 
 
-ref_GB_VCs:
- - VC_122_0
- - VC_140_0
- - VC_14_0
- - VC_141_0
- - VC_157_0
- - VC_160_0
- - VC_161_0
- - VC_162_0
- - VC_165_0
- - VC_167_0
- - VC_17_0
- - VC_171_0
- - VC_178_0
- - VC_183_0
- - VC_184_0
- - VC_186_0
- - VC_190_0
- - VC_191_0
- - VC_199_0
- - VC_201_0
- - VC_202_0
- - VC_203_0
- - VC_2_0
- - VC_238_0
- - VC_243_0
- - VC_257_1
- - VC_26_0
- - VC_261_0
- - VC_268_0
- - VC_270_0
- - VC_274_0
- - VC_278_0
- - VC_28_0
- - VC_290_0
- - VC_29_0
- - VC_291_0
- - VC_292_0
- - VC_293_0
- - VC_294_0
- - VC_295_0
- - VC_296_0
- - VC_299_0
- - VC_30_0
- - VC_301_0
- - VC_302_0
- - VC_303_0
- - VC_304_0
- - VC_305_0
- - VC_306_0
- - VC_307_0
- - VC_308_0
- - VC_309_0
- - VC_313_0
- - VC_315_0
- - VC_317_0
- - VC_318_0
- - VC_350_0
- - VC_361_0
- - VC_378_0
- - VC_379_0
- - VC_380_0
- - VC_383_0
- - VC_386_0
- - VC_42_0
- - VC_50_0
- - VC_52_0
- - VC_53_0
- - VC_54_0
- - VC_6_1
- - VC_64_0
- - VC_65_0
- - VC_66_0
- - VC_76_0
- - VC_78_0
- - VC_85_0
- - VC_88_0
- - VC_Uncluster
+HBvirDB_samples:
+ - BGrammont
+ - BLesDroites
+ - D296
+ - D297
+ - D298
+ - D299
+ - D300
+ - D301
+ - D302
+ - D303
+ - D304
+ - D305
+ - D306
+ - D307
+ - D308
+ - D309
+ - D310
+ - D311
+ - D312
+ - D313
+ - D314
+ - D315
+ - D316
+ - D317
+ - D318
+ - D319
+ - D320
+ - D321
+ - D322
+ - D323
+ - D324
+ - D325
+ - D326
+ - D327
+ - D328
+ - D329
+ - D330
+ - D331
+ - D332
+ - D333
+ - D334
+ - D335
+ - D336
+ - D337
+ - D338
+ - D339
+ - D340
+ - D341
+ - D342
+ - D343
+ - D344
+ - D345
+ - D346
+ - D347
+ - D348
+ - D349
+ - D350
+ - D351
+ - D352
+ - D353
+ - D354
+ - D355
+ - D356
+ - D357
+ - D358
+ - D359
+ - D360
+ - D361
+ - D362
+ - D363
+ - D364
+ - D366
+ - D367
+ - D368
+ - D369
+ - D370
+ - D371
+ - D372
+ - D373
+ - D374
+ - D375
+ - D376
+ - D377
+ - D378
+ - D379
+ - D380
+ - D381
+ - D382
+ - D383
+ - D384
+ - D385
+ - D386
+ - D387
+ - D388
+ - D389
+ - D390
+ - D391
+ - D392
+ - D393
+ - D394
+ - D395
+ - D396
+ - D397
+ - ISOLATES
+ - PacBioMORAN
+
 
 ref_bact_nnrd:
  - A9G03

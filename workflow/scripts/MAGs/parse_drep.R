@@ -101,12 +101,14 @@ clust_assign_full<- left_join(clust_assign, gtdb_reduced, by="Bin Id") %>%
 clust_info_full<- clust_info %>%
   dplyr::mutate("isolate"=ifelse(grepl("MAG", genome), "no", "yes"))
 
-# delete all cluster that are not classified at the genus level
-to_delete<- clust_assign_full %>% filter(isolate=="no") %>%
-  filter(species=="NA sp.")
+# # delete all cluster that are not classified at the genus level
+# to_delete<- clust_assign_full %>% filter(isolate=="no") %>%
+#   filter(species=="NA sp.")
 
-clust_final<- clust_assign_full %>% filter(!`Bin Id` %in% to_delete$`Bin Id`) %>%
-  mutate("id"=paste(species, " cl.-", secondary_cluster, sep="")) %>%
+clust_final<- clust_assign_full %>%  #filter(!`Bin Id` %in% to_delete$`Bin Id`) %>%
+  mutate("species"=ifelse(species=="NA sp.", paste(genus, "sp.", sep=""), species),
+        "species"=ifelse(species=="NAsp.", paste("Lactobacillaceae", " sp.", sep=""), species),
+        "id"=paste(species, " cl.-", secondary_cluster, sep="")) %>%
   relocate("Bin Id") %>%
   relocate("species", .after=genome)
 
@@ -126,7 +128,7 @@ write.table(clust_info_full, unlist(snakemake@output[["clust_info"]]) , quote = 
 write.table(clust_assign_full, unlist(snakemake@output[["clust_assign"]]), quote = F, row.names = F, sep = "\t")
 
 ## This table contains the deleted dRep clusters
-write.table(to_delete, unlist(snakemake@output[["to_delete"]]), quote = F, row.names = F, sep = "\t")
+#write.table(to_delete, unlist(snakemake@output[["to_delete"]]), quote = F, row.names = F, sep = "\t")
 
 ## This table contains the filtered dRep cluster, with some info on the taxomy where MAGs have been assigned a taxonomical classification
 write.table(clust_final, unlist(snakemake@output[["clust_final"]]), quote = F, row.names = F, sep = "\t")

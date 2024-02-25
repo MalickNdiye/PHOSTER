@@ -131,3 +131,21 @@ def get_bact_annot_prot(wildcards):
     files=[os.path.join(dir, f) for f in files]
 
     return(files)
+
+def filter_fasta(fasta, list_fasta, out):
+    # this function filters a fasta file keeping only sequences in list
+    # fasta: fasta file to filter
+    # list: list of sequences to keep
+    # out: output file
+    from Bio import SeqIO
+    from Bio.SeqRecord import SeqRecord
+
+    # read fasta file
+    records = list(SeqIO.parse(fasta, "fasta"))
+
+    # filter records
+    records_filt = [r for r in records if r.id in list_fasta]
+
+    # write filtered records
+    SeqIO.write(records_filt, out, "fasta")
+

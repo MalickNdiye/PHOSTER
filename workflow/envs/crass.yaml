@@ -1,0 +1,7 @@
+name: crass
+channels:
+  - conda-forge
+  - bioconda
+  - anaconda
+dependencies:
+  - crass
