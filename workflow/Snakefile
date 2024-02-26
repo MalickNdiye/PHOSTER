@@ -20,8 +20,9 @@ REF_GENOMES= glob_wildcards("../results/reference_db_filtered/dereplicated_genom
 
 rule all:
     input:
-        expand("../results/vMAG_binning/summary_tables/metadata/{sample}_virus_metadata.tsv", sample=config["samples"]),
-        #expand("../results/inStrain/profile_{type}/{sample}{type}_profile/", type="B", sample=config["sam_names"]),
+        #expand("../results/vMAG_binning/summary_tables/metadata/{sample}_virus_metadata.tsv", sample=config["samples"]),
+        expand("../results/inStrain/profile_{type}/{sample}{type}_profile/", type="P", sample=config["sam_names"]),
+        "../results/Vcontact2/vCONTACT_results"
         #expand("../results/inStrain/compare_B/compare_{genome}", genome=REF_GENOMES.genome)
         #"../results/Vcontact2/vCONTACT_results"
         #expand("../results/assembly/viral_contigs/filtered/{sample}_viral_contigs_filtered.fasta", sample=config["samples"]),
@@ -1376,7 +1377,8 @@ rule dereplicate_viral_contigs:
 # dRep dereplicate {params.tmp_dir} -g {input.dir}/* --S_algorithm fastANI -nc .85 -l 10000 -N50W 0 -sizeW 1 --ignoreGenomeQuality --multiround_primary_clustering --run_tertiary_clustering --greedy_secondary_clustering --clusterAlg single -p {threads}; "
 rule parse_dRep_viruses:
     input:
-        drep="../results/vMAGs/dereplication/dRep"
+        drep="../results/vMAGs/dereplication/dRep",
+        metadata="../results/vMAG_binning/summary_tables/all_virus_metadata.tsv"
     output:
         tab="../results/vMAGs/dereplication/dRep_summary.tsv"
     resources:
@@ -1389,7 +1391,7 @@ rule parse_dRep_viruses:
     conda:
         "envs/base_R_env.yaml"
     shell:
-        "Rscript scripts/vMAGs/parse_drep_viruses.R -i {input.drep} -o {output.tab}"
+        "Rscript scripts/vMAGs/parse_drep_viruses.R -i {input.drep} -m {input.metadata} -o {output.tab}"
 
 rule aggregate_drep_viruses:
     input:
