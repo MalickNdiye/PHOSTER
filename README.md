@@ -1,7 +1,7 @@
----
-title: "PHOSTER"
-author: "Malick Ndiaye"
----
+PHOSTER
+==============
+**Author:** *Malick ndiaye*
+
 
 This is the bioinformatics pipeline of the project PHOSTER. The per-print is now available!
 

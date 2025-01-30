@@ -1,3 +1,6 @@
+# This scripts take the output of all the tools used for viral identification and format them into a single table.
+
+
 library(tidyverse)
 
 # Write function to format viral identification files

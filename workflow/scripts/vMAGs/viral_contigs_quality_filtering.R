@@ -29,7 +29,7 @@ checkv<-read.csv(checkv_p, sep="\t", header=T) %>%
          reason="retained")
 
 # Filtering criteria
-## 1. length>10k and length <500k (contig longer or shorter are very low quality or contaminated)
+## 1. length>10k and (contig  shorter are very low quality)
 ## 2. Low- to Complete-quality (low quality are used only for mapping but excluded from analyses)
 ## 3. kmer frequency <1.1 (too high indicates contamination)
 checkv_filt<- checkv %>%
