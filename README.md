@@ -37,30 +37,30 @@ In this section we identify phages in both the bacterial and virl fraction using
 
 # 4. Polish Viral Contigs
 
-In this section viral contigs are trimmed to remove bacterial contaminations (in the case of prophages). Moreover, the quality of the contigs is determined using checkV. Finally, contigs are filtered agai in function of lentght (<10kb) and contamination.
+In this section viral contigs are trimmed to remove bacterial contaminations (in the case of prophages). Moreover, the quality of the contigs is determined using checkV. Finally, contigs are filtered again in function of lentght (<10kb) and contamination.
 
 # 5. Dereplicate viral contigs
 
 In this section use dRep to dereplicate the viral contigs at 95% ANI and 85% AF. There are two types of dereplication for 95% ANI and 85 %AF:
-- Dereplication using average clustering. this will yield database to map reads.
-- Dereplication using single linkage clustering. This will yield the vOTUS.
+- Dereplication using average-linkage clustering. This will yield a dereplicated vMAGs database to map reads.
+- Dereplication using single -inkage clustering. This will yield the vOTUS (as suggested by the [dRep developer](https://drep.readthedocs.io/en/latest/choosing_parameters.html))
 
-I do this double dereplication because I noticed that the average-linkage clustering often results in contigs with >98% ANI in different cluster. this is a issue for mapping. On the other hand, The single linkage create clusters contain genomes that are too divergent >95% ANI and the representative genomes may not be detected in some smples although members of the same cluster would be detected. I think this issue stems from the high variability of viruses that creates a continuum of divergence in ANI. So, to me the single link makes more sense to represent a cohesive genetic unit (vOTU) but I use the average linkage to avoid mapping issues caused by the divergence within a vOTU (mlti-mapped reads will end up counting for the same vOTU). 
+I do this double dereplication because I noticed that the average-linkage clustering often results in contigs with >98% ANI in different clusters. This is a issue for mapping because reads willl be assigned to multiple vOTUs. On the other hand, The single-linkage create clusters contain genomes that are too divergent >95% ANI and the representative genomes may not be detected in some samples although members of the same vOTU would be detected. I think this issue stems from the high variability of viruses that creates a continuum of divergence in ANI that goes beyond the 95% ANI 85% AF standard threshold. So, to me the single link makes more sense to represent a cohesive genetic unit (vOTU) but I use the average-linkage to avoid mapping issues caused by the divergence within a vOTU (mlti-mapped reads will end up counting for the same vOTU in this case). 
 
-A all vs all alignment is also performed in this section using fastANI.
+An all vs all alignment is also performed in this section using fastANI.
 
 # 6. Host Assignation
 
-to assign hosts to every viral contigs we will use the CRISPR spacers and genome homology:
+To assign hosts to every viral contigs we will use the CRISPR spacers and genome homology:
 
-1. find CRISPR spacers,DR and cas genes in all MAGs and refernce bacterial genome
+1. find CRISPR spacers,DR and cas genes in all MAGs and refernce bacterial genome. filter for good quality spacers
 2. Create databases of CRISPR spacers and map them to the redundant viral contigs 
 3. Use Fastani to determine genome Homology between phages and bacteria
 4. Parse the results
 
-During the result parsing, host X is targeted by phage Y if:
-- A CRSIPR from host X maps with maximum 2 mismathces to phage Y
-- Phage Y has >90% ANI and >50% AF with host X (if AF >80% it is considered a prophage)
+During the results parsing, host X is targeted by phage Y if:
+- A CRSIPR from host X maps with maximum 2 mismathces to phage Y (gaps are counted in this case)
+- Phage Y has >90% ANI and >50% AF with host X (if AF >80%, it is considered a prophage). usually people use blast to do this, but [Johansen et al. (2022)](https://www.nature.com/articles/s41467-022-28581-5) show that FastANI works just as good
 
 All the host assigned to a given viral contig are assigned to the entire vOTU
 
