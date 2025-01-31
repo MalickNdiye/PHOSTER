@@ -2,6 +2,8 @@
 library("optparse")
 library(tidyverse)
 
+"Author: Malick Ndiaye"
+
 option_list = list(
   make_option(c("-i", "--checkv"), type="character", default=NULL, 
               help="CheckV quality file", metavar="character"),
@@ -29,7 +31,7 @@ checkv<-read.csv(checkv_p, sep="\t", header=T) %>%
          reason="retained")
 
 # Filtering criteria
-## 1. length>10k and (contig  shorter are very low quality)
+## 1. length>10k
 ## 2. Low- to Complete-quality (low quality are used only for mapping but excluded from analyses)
 ## 3. kmer frequency <1.1 (too high indicates contamination)
 checkv_filt<- checkv %>%

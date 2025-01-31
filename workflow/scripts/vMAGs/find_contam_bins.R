@@ -2,6 +2,7 @@
 library("optparse")
 library(tidyverse)
 
+"Author: Malick Ndiaye"
 option_list = list(
   make_option(c("-i", "--trim"), type="character", default=NULL, 
               help="CheckV contamination folder", metavar="character"),

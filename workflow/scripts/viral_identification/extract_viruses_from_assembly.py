@@ -9,7 +9,7 @@ from Bio import SeqIO
 parser = argparse.ArgumentParser(
     description="""Given a table of identified viral contigs and a FATSA file, this
     script extract the viral contigs from the FASTA and creates a new fatsa file of only viral contigs.
-    if a prophage is identified, the script also cut the sequence to correspond anly to the prophage""",
+    if a prophage is identified, the script also cut the sequence to correspond only to the prophage""",
     formatter_class=argparse.RawDescriptionHelpFormatter,
     add_help=False,
 )

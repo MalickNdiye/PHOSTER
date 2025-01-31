@@ -38,7 +38,10 @@ library(viridis)
 source("../useful_func.R")
 
 
-fig_dir<- "../../../Figures/Data-validation/"
+fig_dir<- "../../../Figures/manuscript/raw"
+if (!dir.exists(fig_dir)){
+  dir.create(fig_dir, recursive = T)
+} 
 ```
  
 #DNA extraction
@@ -83,7 +86,8 @@ fastqc<- read.table(fastqc_p, header=T, sep="\t") %>%
 
 
 read_count<- "../../../results/data_validation/QC/Summary/read_count.txt"
-reads<- read.table(read_count, header=T)
+ch_sam<- c(paste(seq(1,55, by=1), "B", sep=""),paste(seq(1,55, by=1), "P", sep=""))
+reads<- read.table(read_count, header=T) %>% filter(sample %in% ch_sam)
 ```
 
 ## FastQC
@@ -212,9 +216,9 @@ let's open the kraken2 report:
 ```{r open kraken report dataframe, warning=F}
 setwd("../../")
 report<- "../results/data_validation/kraken2_output/Summary/all_samples_report.txt"
-#snakemake@input[1] 
 
-krk_df<- read.csv(report, header=T, sep="\t")
+krk_df<- read.csv(report, header=T, sep="\t") %>%
+  filter(sample %in% ch_sam)
 
 unique(krk_df$sample)
 length(unique(krk_df$sample))
@@ -247,15 +251,9 @@ krk_comm_plt<- ggplot(plt_krk_df, aes(x=reorder(sam_name, as.numeric(sam_name)),
                                       fill=factor(taxon, levels = names(my_pal)))) +
   geom_bar(position="stack", stat="identity") +
   labs(x="", y="% Reads") +
-  geom_segment(aes(x = 0.5, xend = 49.5, y = -3, yend = -3),
-                   size=5, col="lightpink2") +
-  geom_segment(aes(x = 49.5, xend = 73.5, y = -3, yend = -3),
-               size=5, col="lightcyan2") +
-  annotate("text", x = 25, y = -3, label = "Switzerland", face="bold") +
-  annotate("text", x = 61, y = -3, label = "Japan", face="bold") +
-  scale_fill_manual(values = my_pal) +
   scale_y_continuous(breaks = seq(0, 100, by = 5))+
   guides(fill = guide_legend(title = "")) +
+  scale_fill_manual(values=my_pal)+
   theme_classic()+
   theme(legend.position="top",
         axis.text.y = element_text(face= "bold", size=14),
@@ -268,182 +266,6 @@ krk_comm_plt<- ggplot(plt_krk_df, aes(x=reorder(sam_name, as.numeric(sam_name)),
         legend.text = element_text(size=14,face="bold"))+
   facet_wrap(sample_type~., ncol=2, strip.position="top"); krk_comm_plt
 
-ggsave(paste(fig_dir, "Kraken2_barplot.svg", sep=""), krk_comm_plt,units = "mm", height = 210, width = 297, dpi=600)
-```
-
-### Phylum-level composition
-```{r}
-krk_df %>% filter(c((rank_code=="P" | rank_code=="U") & percentage_of_reads>0.01)) %>% 
-  filter(sample_type=="bacteriome") %>%
-  ggplot(aes(x=sample, y=percentage_of_reads, fill=fct_inorder(taxon))) +
-  geom_bar(position="stack", stat="identity") +
-  scale_fill_brewer(palette = "Set3") +
-  guides(fill = guide_legend(title = "Phylum")) +
-  theme_classic()
-```
-
-### Genus-level composition
-
-```{r genus level composition}
-tr<-1
-
-krk_df_genus<- krk_df %>%  mutate("sam_name"= unlist(strsplit(sample, split = "B|P")),
-                  "tax_plt"=ifelse((percentage_of_reads>tr), taxon,
-                                   paste("other<", tr,"%", sep=""))) %>%
-  filter(c((rank_code=="G" | rank_code=="U" | taxon=="GB_VCs")))%>%
-  filter(sample_type=="bacteriome")
-
-levs<- get_gen_col(krk_df_genus$taxon, krk_df_genus$percentage_of_reads, threshold = tr)[[1]]
-col_list<- get_gen_col(krk_df_genus$taxon, krk_df_genus$percentage_of_reads,threshold = tr)[[2]]
-
-ggplot(krk_df_genus, aes(x=reorder(sam_name, as.numeric(sam_name)), y=percentage_of_reads,
-           fill=factor(tax_plt, levels = levs))) +
-  geom_bar(position="stack", stat="identity") +
-  scale_fill_manual(values = col_list) +
-  guides(fill = guide_legend(title = "Genus")) +
-  labs(x="", y="Relative Abundance")+
-  theme_classic()+
-    theme(axis.text.x = element_text(size = 20, angle = 90, hjust = .5,
-                                   vjust = .5, face
-                                   = "plain"),
-        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain")) 
-```
-
-##mOTUS
-```{r open mOTUs report dataframe, warning=F}
-report<- "../../../results/data_validation/motus_output/Summary/motus_combined.txt"
-df_motus<- read.csv(report, header=T, sep="\t")
-
-condense_motu <- function(motu){
-  motu_condensed = strsplit(motu, " ")[[1]][1]
-  return(motu_condensed)
-}
-
-df_motus_combined <- df_motus %>% 
-  group_by(Sample) %>%
-  dplyr::mutate("rel_ab"=rel_ab/sum(rel_ab)) %>%
-                      group_by(Sample, motu) %>%
-                              dplyr::mutate(mean_rel_ab = mean(rel_ab)) %>%
-                                dplyr::mutate(motu_condensed = Vectorize(condense_motu)(motu)) 
-
-unique(df_motus_combined$Sample)
-length(unique(df_motus_combined$Sample))
-```
-
-```{r}
-condense_motu <- function(motu){
-  motu_condensed = strsplit(motu, " ")[[1]][1]
-  return(motu_condensed)
-}
-
-motu_list <- df_motus_combined %>%
-              pull(motu) %>% unique
-head(motu_list)
-
-high_motu_list <- df_motus_combined %>%
-                        filter(rel_ab >= 0.1) %>%
-                          pull(motu_condensed) %>% unique
-
-high_motu_list
-```
-
-```{r}
-tr<-0.01
-
-df_motus_filt <- df_motus_combined %>% 
-  mutate("tax_plt"=ifelse(rel_ab>tr, motu_condensed,
-                                   paste("other<", tr,"%", sep=""))) %>%
-  group_by(Sample, motu) %>%
-   dplyr::mutate(Sample=unlist(strsplit(Sample, split = ".S00"))[1],
-         sam_org=ifelse(grepl("LLE", Sample), "Kristen", "Malick")) 
-   
-
-levs<- get_gen_col(df_motus_filt$motu_condensed , df_motus_filt$rel_ab, threshold = tr, add_pal="Greys", unclass = "unassigned")[[1]]
-col_list<- get_gen_col(df_motus_filt$motu_condensed , df_motus_filt$rel_ab, threshold = tr, add_pal="Greys", unclass = "unassigned")[[2]]
-levs
-col_list
-
-
-ggplot(df_motus_filt, aes(x=reorder(Sample, as.numeric(unlist(strsplit(Sample, "B")))), y=rel_ab,
-           fill=factor(tax_plt, levels = levs))) +
-  geom_bar(position="stack", stat="identity") +
-  scale_fill_manual(values = col_list) +
-  guides(fill = guide_legend(title = "Genus")) +
-  labs(x="", y="Relative Abundance")+
-  theme_classic()+ guides(size = "legend", colour = "none") +
-    theme(axis.text.x = element_text(size =10, angle = 90, hjust = .5, vjust=.5, face = "plain"),
-        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"))
-```
-```{r}
-tr<-0.01
-
-df_motus_filt <- df_motus_combined %>% mutate("tax_plt"=ifelse(rel_ab>tr, motu_condensed,
-                                   paste("other<", tr,"%", sep=""))) %>% mutate(sam_org=ifelse(grepl("LLE", Sample), "Kristen", "Malick")) %>% filter(!sam_org=="Kristen")
-
-levs<- get_gen_col(df_motus_filt$motu_condensed , df_motus_filt$rel_ab, threshold = tr, add_pal="Greys", unclass = "unassigned")[[1]]
-col_list<- get_gen_col(df_motus_filt$motu_condensed , df_motus_filt$rel_ab, threshold = tr, add_pal="Greys", unclass = "unassigned")[[2]]
-levs
-col_list
-
-
-ggplot(df_motus_filt, aes(x=reorder(Sample, as.numeric(unlist(strsplit(Sample, "B")))), y=rel_ab,
-           fill=factor(tax_plt, levels = levs))) +
-  geom_bar(position="stack", stat="identity") +
-  scale_fill_manual(values = col_list) +
-  guides(fill = guide_legend(title = "Genus")) +
-  labs(x="", y="Relative Abundance")+
-  theme_classic()+ guides(size = "legend", colour = "none") +
-    theme(axis.text.x = element_text(size =10, angle = 90, hjust = .5, vjust=.5, face = "plain"),
-        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"))
-```
-
-
-
-
-```{r}
-df_motus_count<- df_motus_combined %>% group_by(Sample) %>% dplyr::summarise(bacterial_reads=sum(read_count, na.rm = T)) %>% mutate(sam_org=ifelse(grepl("LLE", Sample), "Kristen", "Malick"))
-```
-
-```{r}
-ggplot(df_motus_count,aes(x = reorder(Sample, as.numeric(unlist(strsplit(Sample, "B")))),
-                          y=bacterial_reads,
-                          fill=factor(sam_org, levels=c("Malick", "Kristen"))))+
-  geom_bar(stat="identity")+
-  scale_fill_manual(values = c("azure4", "azure3")) +
-   guides(fill = guide_legend(title = "Sample Origin")) +
-  theme_classic()+
-  labs(y="reads mapping to bacterial MGs")+
-  theme(axis.title.x=element_blank(),
-        axis.text.x=element_blank(),
-        axis.ticks.x=element_blank(),
-        axis.text.y = element_text(size = 12, angle = 0, hjust = 1, vjust = 0, face = "plain"))
-```
-```{r}
-df_motus_mal<- df_motus_combined %>% group_by(Sample) %>% dplyr::summarise(bacterial_reads=sum(read_count, na.rm = T)) %>% mutate(sam_org=ifelse(grepl("LLE", Sample), "Kristen", "Malick")) %>% filter(sam_org=="Malick")
-
-df_count_comb<- left_join(df_motus_mal, reads[, c("sample", "reads_postFilt")], by= c("Sample"="sample"))
-
-ggplot(df_count_comb, aes(x=reads_postFilt, y=bacterial_reads))+
-  geom_point()+
-  labs(x="Total Reads", y="Reads Mapping to Bacterial MG")+
-  theme_classic()
-```
-
-# Save Figs
-```{r}
-ggsave("../../../Figures/230324_DMF_FriSeminar/Kraken_plot.png",
-       krk_comm_plt,
-       units = "in",
-       dpi = 900,
-       width = 11.7,
-       height = 8.3)
-
-ggsave("../../../Figures/230324_DMF_FriSeminar/DNA_extraction_yield.png",
-       extraction_yield_plt,
-       units = "in",
-       dpi = 900,
-       width = 11.7,
-       height = 8.3)
-
+ggsave(file.path(fig_dir, "Kraken2_barplot.svg"), krk_comm_plt,units = "mm", height = 210, width = 297, dpi=600)
 ```
 

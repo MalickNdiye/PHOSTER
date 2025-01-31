@@ -20,7 +20,10 @@ option_list = list(
   make_option(c("-o", "--outfile"), type="character", default=NULL,
               help="output phage-host file", metavar="character"),
   make_option(c("-e", "--openDB"), type="character", default=NULL,
-              help="openCRISPR database", metavar="character")
+              help="openCRISPR database", metavar="character"),
+  make_option(c("-l", "--vhm"), type="character", default=NULL,
+              help="vir-host-matcher output", metavar="character")
+
 )
 
 opt_parser = OptionParser(option_list=option_list)
@@ -121,9 +124,16 @@ phage_host_prophages<-fastani %>% select(Query, bacteria, id, genus, state) %>%
   rename("virus"=Query) %>%
   distinct(virus, bacteria, .keep_all = TRUE)
 
+
+# Open VHM file
+print("open and format vir-host-matcher output")
+vhm<- fread(opt$vhm) %>%
+  select(-d2star) %>%
+  relocate(virus, bacteria, id, genus, detection, state)
+
 # combine data
 print("combine data")
-phage_host<- rbind(phage_host_spacers, phage_host_prophages)%>%
+phage_host<- rbind(phage_host_spacers, phage_host_prophages, vhm)%>%
   group_by(virus, bacteria) %>%
   mutate(
     detection=ifelse(all(c("CRISPR", "Homology") %in% detection), "Both", unique(detection)),

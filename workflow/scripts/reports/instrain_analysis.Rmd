@@ -20,7 +20,10 @@ library(plotly)
 ```
 
 ```{r get figure path}
-fig_p<- "../../../Figures/"
+fig_dir<- "../../../Figures/manuscript/raw"
+if (!dir.exists(fig_dir)){
+  dir.create(fig_dir, recursive = T)
+} 
 ```
 
 ```{r}
@@ -64,14 +67,7 @@ mapping_filtering_plt<- ggplot(mapping_info_m, aes(x=factor(sample, levels = mix
 # Community composition
 ```{r}
   
-genome_info<-  read.csv("../../../results/inStrain/profile_B/summary_data/all_genome_info.tsv", header=T, sep="\t") %>% 
-  mutate("id"= get_mtdata(mtdata_path="../../../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv",
-                          "id", corr="genome", genome),
-         "genus"= get_mtdata(mtdata_path="../../../results/reference_db_filtered/summary_data_tables/clust_filtered_winners.tsv",
-                          "genus", corr="genome", genome))%>%
-  #relocate(species, .after = genome) %>%
-  relocate(genus, .after = genome) %>%
-  relocate(id, .after = genus)
+genome_info<-  read.csv("../../../results/inStrain/profile_B/summary_data/all_genome_info.tsv", header=T, sep="\t")
 
 genome_info_filt <- genome_info %>% filter(coverage_median>=5 & breadth >= 0.5) %>%
   group_by(sample) %>%
@@ -92,12 +88,12 @@ cols<-  get_gen_col(genome_info_filt$genus, rel_ab = genome_info_filt$frequency,
 genera_relab_plt<- genome_info_filt %>% mutate(tax_plt=ifelse(frequency>th, genus, paste("other<", th,"%", sep=""))) %>%
   ggplot(aes(x=factor(sample, levels=mixedsort(unique(sample))), y=frequency, fill=factor(tax_plt, levels=levs)))+
     geom_bar(stat = "identity", position = "stack",color = "black" , size = 0.2)+
-  geom_segment(aes(x = 0.5, xend = 49.5, y = -0.03, yend = -0.03),
-                   size=10, col="lightpink2") +
-  geom_segment(aes(x = 49.5, xend = 73.5, y = -0.03, yend = -0.03),
-               size=10, col="lightcyan2") +
-  annotate("text", x = 25, y = -0.03, label = "Switzerland", face="bold") +
-  annotate("text", x = 61, y = -0.03, label = "Japan", face="bold") +
+  # geom_segment(aes(x = 0.5, xend = 49.5, y = -0.03, yend = -0.03),
+  #                  size=10, col="lightpink2") +
+  # geom_segment(aes(x = 49.5, xend = 73.5, y = -0.03, yend = -0.03),
+  #              size=10, col="lightcyan2") +
+  # annotate("text", x = 25, y = -0.03, label = "Switzerland", face="bold") +
+  # annotate("text", x = 61, y = -0.03, label = "Japan", face="bold") +
     scale_fill_manual(values=cols)+
   labs(x="", y="Relative Frequency", fill="")+
   theme_classic()+
@@ -108,6 +104,7 @@ genera_relab_plt<- genome_info_filt %>% mutate(tax_plt=ifelse(frequency>th, genu
         legend.text = element_text(face="bold")); genera_relab_plt
 
 ggplotly(genera_relab_plt)
+ggsave(file.path(fig_dir, "genera_relab_plt.svg"), genera_relab_plt,units = "mm", height = 210, width = 297, dpi=600)
 ```
 
 ## putative species relative proportion
@@ -135,12 +132,12 @@ put_sp_prop_plt<- ggplot(genome_plt, aes(x=factor(sample,
                                          y=freq_inG, 
                                          fill=id))+
   geom_bar(stat = "identity", position = "stack", color = "black" , size = 0.2)+
-  geom_segment(aes(x = 0.5, xend = 49.5, y = -0.05, yend = -0.05),
-                   size=10, col="lightpink2") +
-  geom_segment(aes(x = 49.5, xend = 73.5, y = -0.05, yend = -0.05),
-               size=10, col="lightcyan2") +
-  annotate("text", x = 25, y = -0.05, label = "Switzerland", face="bold") +
-  annotate("text", x = 61, y = -0.05, label = "Japan", face="bold") +
+  # geom_segment(aes(x = 0.5, xend = 49.5, y = -0.05, yend = -0.05),
+  #                  size=10, col="lightpink2") +
+  # geom_segment(aes(x = 49.5, xend = 73.5, y = -0.05, yend = -0.05),
+  #              size=10, col="lightcyan2") +
+  # annotate("text", x = 25, y = -0.05, label = "Switzerland", face="bold") +
+  # annotate("text", x = 61, y = -0.05, label = "Japan", face="bold") +
   scale_fill_manual(values=my_pal, breaks = levs)+
   theme_classic()+
   facet_wrap(.~genus)+
@@ -249,12 +246,9 @@ plot_fancy_NMDS<- function(target_genus=genome_info_filt_norm$genus, plots=F){
     filter(genus %in% target_genus) %>%
     arrange(sample) %>%
     mutate(sam_name=as.numeric(gsub("B", "", sample)),
-    origin=ifelse(sam_name<56, "Switzerland", "Japan"),
-         colony=factor(ifelse(sam_name<23, 1,
-                       ifelse(sam_name %in% 23:55, 2,
-                              ifelse(sam_name %in% 56:67,3,4))))) %>% 
+         colony=factor(ifelse(sam_name<23, 5, 8))) %>% 
     ungroup() %>% 
-    dplyr::select(id,sample, origin, colony, norm_reads) %>%
+    dplyr::select(id,sample,  colony, norm_reads) %>%
     pivot_wider(names_from = id,  values_from=norm_reads, values_fill=0)
   
   #perform NMDS and check goodness of fit
@@ -276,7 +270,7 @@ plot_fancy_NMDS<- function(target_genus=genome_info_filt_norm$genus, plots=F){
         "1"="deeppink1", "2"="deeppink4", "3"="lightsteelblue", "4"="lightsteelblue4")
   
   # Perform statistical test
-  fit<- adonis2(div_matrix~origin/colony, data=div_mtdata, permutations = 999, method="bray")
+  fit<- adonis2(div_matrix~colony, data=div_mtdata, permutations = 999, method="bray")
   org_r2<- fit$R2[1]
   print(fit)
   text_stat=paste("p-values: country effect=", fit$`Pr(>F)`[1],
@@ -285,9 +279,6 @@ plot_fancy_NMDS<- function(target_genus=genome_info_filt_norm$genus, plots=F){
   # check assumption of homogeneity of multivariate dispersion (p-value >0.05)
   distance_data<- vegdist(div_matrix)
   print("check assumption of homogeneity of multivariate dispersion (p-value >0.05)")
-  print("origin:")
-  a<- anova(betadisper(distance_data, div_mtdata$origin))
-  print(a)
   print("colony:")
   a<-anova(betadisper(distance_data, div_mtdata$colony))
   print(a)

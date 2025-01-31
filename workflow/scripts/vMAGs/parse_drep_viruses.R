@@ -2,7 +2,7 @@
 library("optparse")
 library(tidyverse)
 library(data.table)
-
+"Author: Malick Ndiaye"
 option_list = list(
   make_option(c("-i", "--drep_data"), type="character", default=NULL, 
               help="dRep_directory", metavar="character"),

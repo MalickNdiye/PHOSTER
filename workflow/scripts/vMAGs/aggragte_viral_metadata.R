@@ -3,11 +3,13 @@ library("optparse")
 library(tidyverse)
 library(data.table)
 
+"Author: Malick Ndiaye"
+
 option_list = list(
   make_option(c("-m", "--metadata"), type="character", default=NULL, 
               help="viral identification metadata", metavar="character"),
-  make_option(c("-b", "--binning_data"), type="character", default=NULL, 
-              help="binning data", metavar="character"),
+  #make_option(c("-b", "--binning_data"), type="character", default=NULL, 
+   #           help="binning data", metavar="character"),
   make_option(c("-t", "--trimming_data"), type="character", default=NULL,
               help="prophage_trimming", metavar="character"),
   make_option(c("-q", "--quality_data"), type="character", default=NULL,
@@ -29,11 +31,8 @@ if (is.null(opt$metadata)){
 ## contig changes. So, the point of this script is to reconcile all the info
 ## to the final name of the contigs.
 mtdata_p<- opt$metadata
-binning_p<- opt$binning_data
 trimming_p<- opt$trimming_data
 quality_p<- opt$quality_data
-
-
 
 # select sample
 sam<- unlist(strsplit(basename(quality_p), split = "_"))[1] 
@@ -42,11 +41,7 @@ sam<- unlist(strsplit(basename(quality_p), split = "_"))[1]
 mtdata<- fread(mtdata_p) %>% 
   filter(sample==sam) %>%
   dplyr::select(new_contig, type, prophage)
-binning<- fread(binning_p) %>% dplyr::select(contig, bin_name)
-
-if(nrow(binning)==0){
-  binning<- data.frame(contig=character(), bin_name=character())
-}
+binning<-  data.frame(contig=character(), bin_name=character())
 
 mtadata_bin<- left_join(mtdata, binning, by=c("new_contig"="contig"), multiple="all") %>%
   mutate(bin_name=ifelse(is.na(bin_name), new_contig, bin_name),

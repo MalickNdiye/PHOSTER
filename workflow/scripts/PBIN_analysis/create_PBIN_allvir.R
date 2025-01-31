@@ -9,8 +9,6 @@ option_list = list(
               help="input phage_host file", metavar="character"),
   make_option(c("-b", "--bact_com"), type="character", default=NULL, 
               help="bacteria community data filtered", metavar="character"),
-  make_option(c("-d", "--dRep"), type="character", default=NULL, 
-              help="bacteria community data filtered", metavar="character"),
   make_option(c("-o", "--outdir"), type="character", default=NULL, 
               help="output directory", metavar="character")
   )
@@ -24,13 +22,6 @@ genus_phyl=c("Gilliamella", "Frischella", "Snodgrassella", "Commensalibacter", "
 target_genus<- get_core()
 quality_thersh<- c("Medium-quality", "High-quality", "Complete")
 
-# Get vOTUs with at least one member satifiying quality condition
-dRep<- fread(opt$dRep)
-vOTU_qual_keep<- dRep %>% filter(representative==T, checkv_quality %in% quality_thersh) %>%
-  pull(vOTU)
-vOTU_qual_keep<- unique(vOTU_qual_keep)
-
-# Get bacteria that are actually detected in the samples
 bact_list<- read.csv(file.path(opt$bact_com, "all_genome_info_filtered.tsv"), sep="\t", header = T) %>%
   pull(unique(id))
   print(bact_list)
@@ -42,10 +33,9 @@ phage_host<- read.csv(opt$infile, sep="\t", header = T)
 get_int_df <- function(df, quality_thersh, genus_phyl, target_genus) {
   
   interaction_df<- df %>% filter(genus %in% target_genus,
-                                 vOTU %in% vOTU_qual_keep,
                                  id %in% bact_list) %>%
     mutate(genus=as.factor(genus),
-           det_value=ifelse( # det alue of 1 for CRISPR, 2 for Homology and 3 for Both
+           det_value=ifelse(
              grepl("Both", detection), 3,
              ifelse(grepl("Homology", detection), 2,
                     ifelse(grepl("CRISPR", detection), 1, 0)))) %>%

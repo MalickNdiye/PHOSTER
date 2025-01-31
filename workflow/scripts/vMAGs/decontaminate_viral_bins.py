@@ -7,7 +7,7 @@ import os
 from Bio import SeqIO
 
 __author__ = "Malick Ndiaye"
-__title__ = "Decontaminate viral bins"
+__title__ = "Decontaminate viral vMAGs"
 
 
 def get_args():

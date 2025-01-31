@@ -17,7 +17,10 @@ library(circlize)
 library(ggbeeswarm)
 source("../useful_func.R")
 
-fig_dir<- "../../../Figures/MAGs_analysis/"
+fig_dir<- "../../../Figures/manuscript/raw"
+if (!dir.exists(fig_dir)){
+  dir.create(fig_dir, recursive = T)
+} 
 tab_dir<- "../../../Supplementary_tabs"
 ```
 
@@ -94,12 +97,12 @@ sam_levs= unique(paste(sort(as.numeric(gsub("B", "", checkm_alls2$sample))), "B"
 MAGs_filtering_plt<- ggplot(checkm_alls2,aes(x=factor(sample, levels = sam_levs), y=value, 
                           fill=factor(variable, levels = c("tot_count", "count_good")))) +
   geom_bar(stat="identity", position = position_dodge())+
-  geom_segment(aes(x = 0.5, xend = 49.5, y = -2, yend = -2),
-                   size=10, col="lightpink2") +
-  geom_segment(aes(x = 49.5, xend = 73.5, y = -2, yend = -2),
-               size=10, col="lightcyan2") +
-  annotate("text", x = 25, y = -2, label = "Switzerland", face="bold") +
-  annotate("text", x = 61, y = -2, label = "Japan", face="bold") +
+  # geom_segment(aes(x = 0.5, xend = 49.5, y = -2, yend = -2),
+  #                  size=10, col="lightpink2") +
+  # geom_segment(aes(x = 49.5, xend = 73.5, y = -2, yend = -2),
+  #              size=10, col="lightcyan2") +
+  # annotate("text", x = 25, y = -2, label = "Switzerland", face="bold") +
+  # annotate("text", x = 61, y = -2, label = "Japan", face="bold") +
   scale_y_continuous(breaks = seq(0,70, by=5))+
   scale_fill_manual(name = "", labels = c("Total MAGs", "Filtered MAGs"), values=c("lightskyblue3", "lightpink"))+
   labs(x="", y= "# MAGs")+
@@ -119,8 +122,67 @@ checkm_alls %>% group_by(sample, good) %>%
   labs(x="", y= "number of MAGs")+
   theme_classic()
 ```
+# MAGs taxonomic composition
+```{r}
+core=c("Bombilactobacillus" , "Commensalibacter", "Lactobacillus","Bifidobacterium","Gilliamella",  "Frischella", "Snodgrassella",  "Bartonella","Apibacter")
+genome_info<-  read.csv("../../../results/inStrain/profile_B/summary_data/all_genome_info_filtered.tsv", header=T, sep="\t")
+present_ids<- unique(genome_info$id)
+
+clust_info<- fread("../../../results/reference_db_filtered/summary_data_tables/clust_filtered.tsv") %>%
+  mutate(type=ifelse(grepl("MAG", genome), "MAG", "isolate"),
+         community=ifelse(genus %in% core, "Honeybee Associated", "Other"))
+
+clust_info_present<- clust_info %>%
+  filter(id %in% present_ids)
+```
+
+From the bacterial samples we obtained 478 high-quality (completeness 75% and contamination <10%) bacterial MAGs (bMAGs) (Fig. 1d,Table S3). These high-quality bMAGs, together with 220 bacterial genomes of isolates from the gut of A. mellifera and other bee species, were clustered at 95% ANI to obtain “species-level” bacterial OTUs (bOTUs). We obtained a total of 92 bOTUs.
+```{r}
+length(clust_info$`Bin Id`[clust_info$type=="MAG"])
+length(clust_info$`Bin Id`[clust_info$type=="isolate"])
+length(unique(clust_info$id))
+```
+
+We detected 53 bOTU in the 49 individual honeybees. Of these, 37 were from honeybee-associated bacterial genera and contained 86% of the high-quality bMAGs (Table S3, Fig. S2). The rest of the bMAGs were associated with environmental bacteria or bee pathogens.
+```{r}
+length(unique(clust_info_present$id))
+length(unique(clust_info_present$id[clust_info_present$community=="Honeybee Associated"]))
+
+all_MAGs<- length(unique(clust_info$genome))
+pres_core<- length(unique(clust_info_present$genome[clust_info_present$community=="Honeybee Associated"]))
+pres<- length(unique(clust_info_present$genome))
+
+(pres/all_MAGs)*10
+(pres_core/all_MAGs)*100
+```
+
+*Fig. S2*
+```{r}
+MAG_pie_plt<- clust_info_present %>% group_by(genus) %>%
+  mutate(n_rel=length(genome)/pres)%>%
+  ggplot(., aes(x="", y=n_rel, fill=factor(genus, levels = levs)))+
+  geom_bar(stat="identity", width=1) +
+  scale_fill_manual(values=cols, name="Genus")+
+  theme_classic()+
+  theme(
+        legend.text = element_text(size=14, face="bold"),
+        legend.title=element_text(size=14, face="bold"),
+        axis.line = element_blank(),
+        axis.text = element_blank(),
+        axis.title = element_blank(),
+        axis.ticks = element_blank())+
+  coord_polar("y", start=0);MAG_pie_plt
+```
 
 
+
+
+```{r}
+
+```
+
+
+# TRASH 
 # MAGs taxonomic classification
 ```{r funtion to parse taxonomic information of GTDB-TK}
 get_taxa_cols<- function(entry){
@@ -383,7 +445,7 @@ clust_all_info<- checkm_filt %>%
   mutate(composition=ifelse(length(unique(type))==2, "Both",
                             ifelse(c("MAG") %in% unique(type), "MAGs", "isolates")))
 
-clust_supp_tab<- write.table(clust_ginfo, file.path(tab_dir, "genomes_info.tsv"), quote=F, sep="\t", row.names = F) 
+#clust_supp_tab<- write.table(clust_ginfo, file.path(tab_dir, "genomes_info.tsv"), quote=F, sep="\t", row.names = F) 
 
 pal=c("isolate"="hotpink4", "MAG"="lightskyblue4")
 library(yangR)

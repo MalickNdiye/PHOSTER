@@ -31,10 +31,10 @@ def get_args():
             "--instrain", action="store",
              help='instrain output', nargs='+'
         )
-        parser.add_argument("-g",
-            "--genes", action="store",
-             help='genes table', nargs='+'
-        )
+        # parser.add_argument("-g",
+        #     "--genes", action="store",
+        #      help='genes table', nargs='+'
+        # )
         parser.add_argument("-t",
             "--taxa", action="store",
              help='taxonomic table'
@@ -91,13 +91,20 @@ def concat_df(file_list, taxa_file):
     # if genome in df colums, add column genus, id from taxa table. the genome will correspond to "bin Id" in taxa table
     if 'iRep' in df_concat.columns:
         taxa = pd.read_csv(taxa_file, sep='\t')
-        df_concat = pd.merge(df_concat, taxa[['Bin Id', 'genus']], how='left', left_on='genome', right_on='Bin Id')
-        df_concat = df_concat.drop('Bin Id', axis=1)
-        # move genome, id, genus columns after sample column
-        cols = df_concat.columns.tolist()
-        cols = cols[:1] + cols[-3:] + cols[1:-3]
-        df_concat = df_concat[cols]
-        
+        # create dictionary with column "Bin Id" as key and "genus" as value
+        taxa_dict = taxa.set_index('genome')['genus'].to_dict()
+        # create dictionary with column "Bin Id" as key and "id" as value
+        taxa_dict_id = taxa.set_index('genome')['id'].to_dict()
+
+        # add column genus to df_concat
+        df_concat['genus'] = df_concat['genome'].map(taxa_dict)
+        # add column id to df_concat
+        df_concat['id'] = df_concat['genome'].map(taxa_dict_id)
+
+        # move columns sample, genome, genus, id to first columns, refer to them by name in the command
+        first_cols = ['sample', 'genome', 'genus', 'id']
+        df_concat = df_concat[first_cols + [col for col in df_concat.columns if col not in first_cols]]
+
     return(df_concat)
 
 def filter_genome_info(df):
@@ -110,6 +117,8 @@ def filter_genome_info(df):
     df['norm_reads'] = df['filtered_read_pair_count']/df['actual_length']
     # now calulate "frequency" as norm_reads/sum(norm_reads) within each sample
     df['frequency'] = df.groupby('sample')['norm_reads'].apply(lambda x: x/x.sum())
+
+    return(df)
 
 def main():
     args = get_args()
@@ -132,15 +141,16 @@ def main():
     all_mapping_info = all_mapping_info[all_mapping_info['scaffold'] == 'all_scaffolds']
 
     # concat gene table
-    all_genes = concat_df(args.genes, args.taxa)
+    #all_genes = concat_df(args.genes, args.taxa)
 
     # write output
     # if output directory does not exist, create it
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir, exist_ok=True)
     all_genome_info.to_csv(os.path.join(args.outdir, 'all_genome_info.tsv'), sep='\t', index=False)
+    all_genome_info_filtered.to_csv(os.path.join(args.outdir, 'all_genome_info_filtered.tsv'), sep='\t', index=False)
     all_mapping_info.to_csv(os.path.join(args.outdir, 'all_mapping_info.tsv'), sep='\t', index=False)
-    all_genes.to_csv(os.path.join(args.outdir, 'all_genes_info.tsv'), sep='\t', index=False)
+    #all_genes.to_csv(os.path.join(args.outdir, 'all_genes_info.tsv'), sep='\t', index=False)
 
 if __name__ == "__main__":
     main()

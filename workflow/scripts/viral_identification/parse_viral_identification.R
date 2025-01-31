@@ -1,9 +1,6 @@
-# This scripts take the output of all the tools used for viral identification and format them into a single table.
-
-
 library(tidyverse)
 
-# Write function to format viral identification files
+# Write function to format viral identification files and gives each contig a score based on the quality of the identification
 
 format_VI<- function(path){
   path_l<- unlist(strsplit(path, split = "/"))

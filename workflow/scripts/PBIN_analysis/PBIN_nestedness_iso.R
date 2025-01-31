@@ -23,9 +23,9 @@ opt = parse_args(opt_parser)
 
 
 
-mat_p<- file.path(opt$PBIN, "blastout_matrix.tsv")
-bact_mods_p<- file.path(opt$mod, "allGenomes_bacterial_modules.txt")
-vir_mods_p<- file.path(opt$mod,"allGenomes_viral_modules.txt")
+mat_p<- file.path(opt$PBIN, "blastout_matrix_iso.tsv")
+bact_mods_p<- file.path(opt$mod, "Isolates_bacterial_modules.txt")
+vir_mods_p<- file.path(opt$mod,"Isolates_viral_modules.txt")
 
 
 # main_mat
@@ -43,7 +43,8 @@ mod_names<- mod_names[!duplicated(names(mod_names))]
 
 # Viral IMs
 vir_mods<- fread(vir_mods_p) %>%
-  mutate(module_name=mod_names[int_module]) 
+  mutate(module_name=mod_names[int_module]) %>% 
+  filter(!grepl("vOTU_337|vOTU_1616", genome))
 
 vir_mods_vec<- setNames(vir_mods$module_name, vir_mods$genome)
 
@@ -78,8 +79,6 @@ test_df <- foreach(i = 1:n_mods, .combine = rbind) %dopar% {
   library("optparse")
   source("scripts/useful_func.R")
   source("scripts/PBIN_analysis/bipartite_network_analysis.R")
-  print("module to test:")
-  print(mod_list[[i]])
   TestNest(mod_list[[i]], iter=opt$iter)
 }
 

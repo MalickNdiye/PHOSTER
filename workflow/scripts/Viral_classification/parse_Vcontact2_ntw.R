@@ -39,14 +39,11 @@ check_for_core<- function(annot){
 }
 
 # set path
-spacer_mtdata_p<-unlist(snakemake@input["formatted_spacers"])
 phage_host_p<- unlist(snakemake@input["phage_host"])
 vcont_gbg_p<- paste(unlist(snakemake@input["vcont_dir"]), "genome_by_genome_overview.csv", sep="/")
 ntw_p<- paste(unlist(snakemake@input["vcont_dir"]), "c1.ntw", sep="/")
 
 # open phage host interaction info
-spacer_mtdata<- read.csv(spacer_mtdata_p, header=T, sep="\t")
-
 phage_host<- read.csv(phage_host_p, header = T, sep="\t") %>% 
   mutate(det_value=ifelse(
     grepl("Both", detection), 3,
