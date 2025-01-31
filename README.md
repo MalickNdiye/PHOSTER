@@ -33,7 +33,7 @@ At the end of this section we will a compendium of bMAGs that are taxonomically 
 
 # 3. Phage Identification
 
-In this section we identify phages in both the bacterial and virl fraction using virsorter2, VIBRANT and ViralVerify. Then the output of these tools is aggragated. a normalized score is given to all contigs based on how many tools identified it as a phage and the confidence in the prediction. Finally, all contigs that pass a given threshols (more or less equivalent to being identified with low confidence by 3 tools) are retained.
+In this section, we identify phages in both the bacterial and virl fraction using virsorter2, VIBRANT and ViralVerify. Then the output of these tools is aggragated. a normalized score is given to all contigs based on how many tools identified it as a phage and the confidence in the prediction. Finally, all contigs that pass a given threshols (more or less equivalent to being identified with low confidence by 3 tools) are retained.
 
 # 4. Polish Viral Contigs
 
