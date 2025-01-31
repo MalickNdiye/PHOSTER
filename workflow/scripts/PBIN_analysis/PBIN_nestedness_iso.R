@@ -6,6 +6,8 @@ library("optparse")
 source("scripts/useful_func.R")
 source("scripts/PBIN_analysis/bipartite_network_analysis.R")
 
+# calculate nestedness for each IM in the isolate PBIN
+
 # get arguments
 option_list = list(
     make_option(c("-p", "--PBIN"), type="character", default=NULL, 
