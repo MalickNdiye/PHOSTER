@@ -3,7 +3,7 @@ PHOSTER
 **Author:** *Malick ndiaye*
 
 
-This is the bioinformatics pipeline of the project PHOSTER. The per-print is now available!
+This is the bioinformatics pipeline of the project PHOSTER. The pre-print is now available!
 
 This snakemake pipeline is divided in several step described below:
 
