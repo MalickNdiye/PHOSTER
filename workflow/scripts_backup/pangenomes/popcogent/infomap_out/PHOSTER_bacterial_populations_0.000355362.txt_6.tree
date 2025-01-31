@@ -1,5 +1,0 @@
-# '-i pajek infomap_out/PHOSTER_bacterial_populations_0.000355362.txt_6.net infomap_out/' -> 3 nodes partitioned in 0s from codelength 1.584376211 in one level to codelength 1.584376211 in 2 levels.
-# path flow name node:
-1:1 0.344228 "4B_MAG.24" 1
-1:2 0.334679 "32B_MAG.16" 3
-1:3 0.321093 "15B_MAG.13" 2
