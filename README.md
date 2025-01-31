@@ -76,9 +76,9 @@ This section is divided in two: Bacteria and Phages.
 
 - Phages: All representative vOTU genomes are annotated. Then protein sequences are fed to vContact2 to create a network of protein sharedness. finally, info on the interaction modules from the PBIN are added to the network.
 
-# 9. MAP TO REFERENCE DB 
+# 9. Map to refrerence database
 
-This section maps the bacterial fraction's reads to the dereplicated bacteria database and the viral fraction's reads to the dereplicated viral database. 
+This section, we map the bacterial fraction's reads to the dereplicated bacteria database and the viral fraction's reads to the dereplicated viral database. 
 
 # 10. Community Analysis
 
