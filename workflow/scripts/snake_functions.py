@@ -2,40 +2,6 @@ import pandas as pd
 import numpy as np
 import os
 
-def get_direction_r1(wildcards) :
-#This  function returns a list of R1 reads when the same sample was sequenced on multiple lanes
-    samname=wildcards.sample
-    l=config["samples"][samname]
-
-    r_list=[]
-    r1_l1=[s for s in l if "L1_R1" in s]
-    r1_l2=[s for s in l if "L2_R1" in s]
-    r1_l3=[s for s in l if "L3_R1" in s]
-    r1_l4=[s for s in l if "L4_R1" in s]
-
-    r_list.extend(r1_l1)
-    r_list.extend(r1_l2)
-    if len(r1_l3) >0: r_list.extend(r1_l3)
-    if len(r1_l4) >0: r_list.extend(r1_l4)
-    return(r_list)
-
-def get_direction_r2(wildcards) :
-#This  function returns a list of R2 reads when the same sample was sequenced on multiple lanes
-    samname=wildcards.sample
-    l=config["samples"][samname]
-
-    r_list=[]
-    r2_l1=[s for s in l if "L1_R2" in s]
-    r2_l2=[s for s in l if "L2_R2" in s]
-    r2_l3=[s for s in l if "L3_R2" in s]
-    r2_l4=[s for s in l if "L4_R2" in s]
-
-    r_list.extend(r2_l1)
-    r_list.extend(r2_l2)
-    if len(r2_l3) >0: r_list.extend(r2_l3)
-    if len(r2_l4) >0: r_list.extend(r2_l4)
-    return(r_list)
-
 def get_files_commas(path, sep=",", remove_hidden=True):
     file_l=os.listdir(path)
 
