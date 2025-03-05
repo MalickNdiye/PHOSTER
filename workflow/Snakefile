@@ -85,8 +85,8 @@ rule concat_lanes:
         R1s=get_direction_r1,
         R2s=get_direction_r2
     output:
-        R1_concat=temp("../scratch_link/concat_raw_reads/{sample}_R1_concat.fastq.gz"), # these files go in scratch because they can be quickly recreated if needed
-        R2_concat=temp("../scratch_link/concat_raw_reads/{sample}_R2_concat.fastq.gz")
+        R1_concat="../scratch_link/concat_raw_reads/{sample}_R1_concat.fastq.gz", # these files go in scratch because they can be quickly recreated if needed
+        R2_concat="../scratch_link/concat_raw_reads/{sample}_R2_concat.fastq.gz"
     threads: 2
     log:
         "logs/data_validation/lane_concatenation/{sample}_concat.log"
