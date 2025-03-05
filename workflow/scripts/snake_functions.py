@@ -1,3 +1,5 @@
+# Description: This file contains functions used in the snakefile to get input files, filter files, etc.
+
 import pandas as pd
 import numpy as np
 import os
