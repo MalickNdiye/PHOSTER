@@ -2,12 +2,30 @@ PHOSTER
 ==============
 **Author:** *Malick ndiaye*
 
+# INTRODUCTION
 
 This is the bioinformatics pipeline of the project PHOSTER. The pre-print is now available!
 
+# PROJECT DESCRIPTION
+
+Bacteriophages (phages) play a crucial role in shaping bacterial communities, yet the relationship between phage and bacterial diversity remains poorly understood, particularly in animal-associated microbiomes. Here, we reconstructed the phage-bacteria interaction network in the gut microbiota of 49 honey bees by leveraging CRISPR spacer matches and genome homology. The resulting interaction network displayed a highly modular structure with nested phage-bacteria interaction within each module. Viral and bacterial alpha and beta diversity were correlated, particularly at the bacterial strain level and when explicitly considering the interaction network in diversity analysis. Overall, our results suggest that the most relevant approach to study phage-bacteria diversity patterns should rely on strain-level resolution and the explicit use of the interaction network. This offer an explanation as to why previous studies have failed to detect phage-bacteria diversity correlations. Finally, we call for further studies building up on these correlation patterns to probe the underlying mechanisms by integrating both bottom-up and top-down regulatory mechanisms in microbiome assembly.
+
+# DIRECTORY STRICTURE
+
+.
+├── README.md --> This file
+├── config --> Directory containing config file for snakemake
+└── workflow --> COntains Snakefile, conda environment and scripts to run the pipeline
+
+# RAW DATA
+
+From 49 bees collected iin Lausanne(Switzerland) we extracted DNA form the bacterial and viral fraction of the gut microbiota. Libraries were prepared with the Illumina Nextera Flex library kit (Illumina) with unique dual indices (UDI) and sequenced on a Illumina NovaSeq 6000 instrument (PE150) at the Genomic Technologies Facility (GTF) of the University of Lausanne. Raw reads data can be found on SRA, BioProject (PRJNA1232403)[]
+
+# PIPELINE
+
 This snakemake pipeline is divided in several step described below:
 
-# 1. Data Validation
+## 1. Data Validation
 
 This section is divided in several step:
 
@@ -19,7 +37,7 @@ In (1) raw reads are profiled using a kraken database containing all the bacteri
 
 At the end of this section, reads are ready for in-depth analysis.
 
-#  2. Bacterial MAGS
+##  2. Bacterial MAGS
 
 In this part we assembled MAGs from the bacterial fraction
 
@@ -31,15 +49,15 @@ In this part we assembled MAGs from the bacterial fraction
 
 At the end of this section we will a compendium of bMAGs that are taxonomically classified, and divided into bOTUs based on ANI
 
-# 3. Phage Identification
+## 3. Phage Identification
 
 In this section, we identify phages in both the bacterial and virl fraction using virsorter2, VIBRANT and ViralVerify. Then the output of these tools is aggragated. a normalized score is given to all contigs based on how many tools identified it as a phage and the confidence in the prediction. Finally, all contigs that pass a given threshols (more or less equivalent to being identified with low confidence by 3 tools) are retained.
 
-# 4. Polish Viral Contigs
+## 4. Polish Viral Contigs
 
 In this section viral contigs are trimmed to remove bacterial contaminations (in the case of prophages). Moreover, the quality of the contigs is determined using checkV. Finally, contigs are filtered again in function of lentght (<10kb) and contamination.
 
-# 5. Dereplicate viral contigs
+## 5. Dereplicate viral contigs
 
 In this section use dRep to dereplicate the viral contigs at 95% ANI and 85% AF. There are two types of dereplication for 95% ANI and 85 %AF:
 - Dereplication using average-linkage clustering. This will yield a dereplicated vMAGs database to map reads.
@@ -49,7 +67,7 @@ I do this double dereplication because I noticed that the average-linkage cluste
 
 An all vs all alignment is also performed in this section using fastANI.
 
-# 6. Host Assignation
+## 6. Host Assignation
 
 To assign hosts to every viral contigs we will use the CRISPR spacers and genome homology:
 
@@ -64,11 +82,11 @@ During the results parsing, host X is targeted by phage Y if:
 
 All the host assigned to a given viral contig are assigned to the entire vOTU
 
-# 7. PBIN analyisis
+## 7. PBIN analyisis
 
 In this section, host-phage linkage info are used to build a phage bacteria interaction network. Then the lpBRIM alogorithm is used to identify modules. Finally nestdness is computed for each modules. These operations are performed 2 times: one for all bacterial genomes (bMAGs and Isolates), and once using only isolates genomes. 
 
-# 8. Bacteria Phylogeny and viral Genetic Relationships
+## 8. Bacteria Phylogeny and viral Genetic Relationships
 
 This section is divided in two: Bacteria and Phages.
 
@@ -76,10 +94,13 @@ This section is divided in two: Bacteria and Phages.
 
 - Phages: All representative vOTU genomes are annotated. Then protein sequences are fed to vContact2 to create a network of protein sharedness. finally, info on the interaction modules from the PBIN are added to the network.
 
-# 9. Map to refrerence database
+## 9. Map to refrerence database
 
 This section, we map the bacterial fraction's reads to the dereplicated bacteria database and the viral fraction's reads to the dereplicated viral database. 
 
-# 10. Community Analysis
+## 10. Community Analysis
 
 In this section I run Instrain profile on all samples and ummarize the results. Moreover, I count SNVs for each bacterial genome across samples. Finally, I run InStrain compare on all the bacterial genomes.
+
+# DOWNSTREAM ANALYSIS
+scripts for downstram analysis and figure generation can be found on [Zenodo]()
