@@ -10,7 +10,7 @@ This is the bioinformatics pipeline of the project PHOSTER. The pre-print is now
 
 Bacteriophages (phages) play a crucial role in shaping bacterial communities, yet the relationship between phage and bacterial diversity remains poorly understood, particularly in animal-associated microbiomes. Here, we reconstructed the phage-bacteria interaction network in the gut microbiota of 49 honey bees by leveraging CRISPR spacer matches and genome homology. The resulting interaction network displayed a highly modular structure with nested phage-bacteria interaction within each module. Viral and bacterial alpha and beta diversity were correlated, particularly at the bacterial strain level and when explicitly considering the interaction network in diversity analysis. Overall, our results suggest that the most relevant approach to study phage-bacteria diversity patterns should rely on strain-level resolution and the explicit use of the interaction network. This offer an explanation as to why previous studies have failed to detect phage-bacteria diversity correlations. Finally, we call for further studies building up on these correlation patterns to probe the underlying mechanisms by integrating both bottom-up and top-down regulatory mechanisms in microbiome assembly.
 
-# DIRECTORY STRICTURE
+# DIRECTORY STRUCTURE
 
 .
 ├── README.md --> This file
