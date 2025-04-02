@@ -106,4 +106,4 @@ In this section I run Instrain profile on all samples and ummarize the results. 
 Raw metagenomic data has been deposited to the NCBI Sequence Read Archive (SRA) under the Project ID PRJNA1232403. The collection of MAGs, some important intermediate files, and tables can be found in the [Zenodo](https://doi.org/10.5281/zenodo.15063743). 
 
 # DOWNSTREAM ANALYSIS
-scripts for downstram analysis and figure generation can be found on [Zenodo](https://doi.org/10.5281/zenodo.15063743)
+scripts for downstream analysis and figure generation can be found on [Zenodo](https://doi.org/10.5281/zenodo.15063743).
